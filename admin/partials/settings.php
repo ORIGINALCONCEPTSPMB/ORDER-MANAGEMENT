@@ -17,6 +17,12 @@ if ( ! isset( $db ) ) {
 }
 
 $defaults = $settings->get_default_settings();
+
+// Resolve created page URLs.
+$admin_page_id  = (int) get_option( 'processflow_admin_page_id', 0 );
+$portal_page_id = (int) get_option( 'processflow_portal_page_id', 0 );
+$admin_page_url = ( $admin_page_id && get_post( $admin_page_id ) ) ? get_permalink( $admin_page_id ) : false;
+$portal_page_url = ( $portal_page_id && get_post( $portal_page_id ) ) ? get_permalink( $portal_page_id ) : false;
 ?>
 <div class="wrap pf-wrap">
 	<h1><span class="dashicons dashicons-admin-settings"></span> <?php esc_html_e( 'Settings', 'processflow-manager' ); ?></h1>
@@ -182,5 +188,42 @@ $defaults = $settings->get_default_settings();
 			</div>
 		</div>
 	</div>
+
+	<!-- Auto-created pages -->
+	<?php if ( $admin_page_url || $portal_page_url ) : ?>
+	<div class="pf-card" style="margin-top:24px;">
+		<div class="pf-card__header">
+			<h3 class="pf-card__title"><?php esc_html_e( 'Your Plugin Pages', 'processflow-manager' ); ?></h3>
+		</div>
+		<div class="pf-card__body">
+			<p style="margin-top:0;color:#555;"><?php esc_html_e( 'These pages were automatically created during plugin activation and contain the plugin shortcodes.', 'processflow-manager' ); ?></p>
+			<table class="pf-table">
+				<thead>
+					<tr>
+						<th><?php esc_html_e( 'Page', 'processflow-manager' ); ?></th>
+						<th><?php esc_html_e( 'Shortcode', 'processflow-manager' ); ?></th>
+						<th><?php esc_html_e( 'URL', 'processflow-manager' ); ?></th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php if ( $admin_page_url ) : ?>
+					<tr>
+						<td><?php esc_html_e( 'Admin Dashboard', 'processflow-manager' ); ?></td>
+						<td><code>[processflow_admin_dashboard]</code></td>
+						<td><a href="<?php echo esc_url( $admin_page_url ); ?>" target="_blank"><?php echo esc_url( $admin_page_url ); ?></a></td>
+					</tr>
+					<?php endif; ?>
+					<?php if ( $portal_page_url ) : ?>
+					<tr>
+						<td><?php esc_html_e( 'Order Tracking Portal', 'processflow-manager' ); ?></td>
+						<td><code>[processflow_user_portal]</code></td>
+						<td><a href="<?php echo esc_url( $portal_page_url ); ?>" target="_blank"><?php echo esc_url( $portal_page_url ); ?></a></td>
+					</tr>
+					<?php endif; ?>
+				</tbody>
+			</table>
+		</div>
+	</div>
+	<?php endif; ?>
 
 </div>

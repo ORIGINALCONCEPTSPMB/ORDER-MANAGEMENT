@@ -222,6 +222,7 @@ class ProcessFlow_Admin {
 			'processflow_create_order',
 			'processflow_update_order',
 			'processflow_delete_order',
+			'processflow_get_order_data',
 			'processflow_update_stage',
 			'processflow_create_stage',
 			'processflow_delete_stage',
@@ -262,6 +263,9 @@ class ProcessFlow_Admin {
 				break;
 			case 'processflow_delete_order':
 				$this->ajax_delete_order();
+				break;
+			case 'processflow_get_order_data':
+				$this->ajax_get_order_data();
 				break;
 			case 'processflow_create_stage':
 				$this->ajax_create_stage();
@@ -351,6 +355,24 @@ class ProcessFlow_Admin {
 		}
 
 		wp_send_json_success( array( 'message' => __( 'Order deleted.', 'processflow-manager' ) ) );
+	}
+
+	private function ajax_get_order_data() {
+		$id    = isset( $_POST['order_id'] ) ? absint( $_POST['order_id'] ) : 0;
+		$order = $this->db->get_order( $id );
+
+		if ( ! $order ) {
+			wp_send_json_error( array( 'message' => __( 'Order not found.', 'processflow-manager' ) ) );
+		}
+
+		wp_send_json_success( array(
+			'id'            => (int) $order->id,
+			'customer_name' => $order->customer_name,
+			'business_name' => $order->business_name,
+			'whatsapp'      => $order->whatsapp,
+			'job_details'   => $order->job_details,
+			'current_stage' => $order->current_stage,
+		) );
 	}
 
 	private function ajax_create_stage() {

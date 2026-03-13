@@ -98,6 +98,51 @@ class ProcessFlow_Activator {
 		}
 
 		update_option( 'processflow_version', PROCESSFLOW_VERSION );
+
+		self::create_default_pages();
+	}
+
+	/**
+	 * Auto-create the admin dashboard and user portal pages if they do not
+	 * already exist.  Page IDs are persisted so re-activation does not
+	 * create duplicates.
+	 */
+	private static function create_default_pages() {
+		// Admin dashboard page – [processflow_admin_dashboard].
+		$admin_page_id = (int) get_option( 'processflow_admin_page_id', 0 );
+		if ( ! $admin_page_id || ! get_post( $admin_page_id ) ) {
+			$admin_page_id = wp_insert_post(
+				array(
+					'post_title'   => __( 'ProcessFlow Admin', 'processflow-manager' ),
+					'post_name'    => 'processflow-admin',
+					'post_content' => '[processflow_admin_dashboard]',
+					'post_status'  => 'publish',
+					'post_type'    => 'page',
+					'post_author'  => get_current_user_id(),
+				)
+			);
+			if ( $admin_page_id && ! is_wp_error( $admin_page_id ) ) {
+				update_option( 'processflow_admin_page_id', $admin_page_id );
+			}
+		}
+
+		// User portal page – [processflow_user_portal].
+		$portal_page_id = (int) get_option( 'processflow_portal_page_id', 0 );
+		if ( ! $portal_page_id || ! get_post( $portal_page_id ) ) {
+			$portal_page_id = wp_insert_post(
+				array(
+					'post_title'   => __( 'Order Tracking', 'processflow-manager' ),
+					'post_name'    => 'order-tracking',
+					'post_content' => '[processflow_user_portal]',
+					'post_status'  => 'publish',
+					'post_type'    => 'page',
+					'post_author'  => get_current_user_id(),
+				)
+			);
+			if ( $portal_page_id && ! is_wp_error( $portal_page_id ) ) {
+				update_option( 'processflow_portal_page_id', $portal_page_id );
+			}
+		}
 	}
 
 	/**

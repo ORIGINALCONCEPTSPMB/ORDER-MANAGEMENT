@@ -204,11 +204,7 @@
 
 			// Populate edit form.
 			if (orderId) {
-				$.get(this.ajaxUrl, {
-					action: 'processflow_get_order_data',
-					nonce:  this.nonce,
-					order_id: orderId,
-				}).done((res) => {
+				this.post('processflow_get_order_data', { order_id: orderId }).done((res) => {
 					if (res.success) {
 						const o = res.data;
 						$('#pf-order-form [name="customer_name"]').val(o.customer_name);
