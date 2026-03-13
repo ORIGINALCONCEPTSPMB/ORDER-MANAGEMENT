@@ -23,6 +23,12 @@ define( 'PROCESSFLOW_VERSION', '1.0.0' );
 define( 'PROCESSFLOW_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'PROCESSFLOW_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
+// Load activator/deactivator immediately so the activation hook callback is
+// available even before plugins_loaded fires (which is the case during the
+// very first activation request).
+require_once PROCESSFLOW_PLUGIN_DIR . 'includes/class-activator.php';
+require_once PROCESSFLOW_PLUGIN_DIR . 'includes/class-deactivator.php';
+
 /**
  * Main plugin orchestrator class.
  *
@@ -66,8 +72,6 @@ class ProcessFlow_Manager {
 	 * Require all class files.
 	 */
 	private function load_dependencies() {
-		require_once PROCESSFLOW_PLUGIN_DIR . 'includes/class-activator.php';
-		require_once PROCESSFLOW_PLUGIN_DIR . 'includes/class-deactivator.php';
 		require_once PROCESSFLOW_PLUGIN_DIR . 'includes/class-database.php';
 		require_once PROCESSFLOW_PLUGIN_DIR . 'includes/class-order-manager.php';
 		require_once PROCESSFLOW_PLUGIN_DIR . 'includes/class-qr-engine.php';
@@ -141,10 +145,6 @@ register_deactivation_hook( __FILE__, array( 'ProcessFlow_Deactivator', 'deactiv
 function run_processflow() {
 	static $plugin = null;
 	if ( null === $plugin ) {
-		// Autoload the activator/deactivator early so the hooks above can fire.
-		require_once PROCESSFLOW_PLUGIN_DIR . 'includes/class-activator.php';
-		require_once PROCESSFLOW_PLUGIN_DIR . 'includes/class-deactivator.php';
-
 		$plugin = new ProcessFlow_Manager();
 		$plugin->run();
 	}

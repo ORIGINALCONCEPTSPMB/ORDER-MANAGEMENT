@@ -34,15 +34,15 @@ class ProcessFlow_Activator {
 			customer_name VARCHAR(255)        NOT NULL DEFAULT '',
 			business_name VARCHAR(255)        NOT NULL DEFAULT '',
 			whatsapp      VARCHAR(50)         NOT NULL DEFAULT '',
-			job_details   TEXT                NOT NULL DEFAULT '',
+			job_details   TEXT                NOT NULL,
 			current_stage BIGINT(20) UNSIGNED          DEFAULT NULL,
-			created_at    DATETIME            NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at    DATETIME            NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			created_at    DATETIME            NOT NULL,
+			updated_at    DATETIME            NOT NULL,
 			qr_code_hash  VARCHAR(64)         NOT NULL DEFAULT '',
-			custom_fields LONGTEXT                     DEFAULT NULL,
-			PRIMARY KEY (id),
+			custom_fields LONGTEXT,
+			PRIMARY KEY  (id),
 			KEY current_stage (current_stage),
-			KEY qr_code_hash  (qr_code_hash)
+			KEY qr_code_hash (qr_code_hash)
 		) $charset_collate;";
 
 		// ------------------------------------------------------------------ //
@@ -53,9 +53,9 @@ class ProcessFlow_Activator {
 			name               VARCHAR(255)        NOT NULL DEFAULT '',
 			order_position     INT(11)             NOT NULL DEFAULT 0,
 			color              VARCHAR(20)         NOT NULL DEFAULT '#000000',
-			whatsapp_template  TEXT                NOT NULL DEFAULT '',
+			whatsapp_template  TEXT                NOT NULL,
 			is_active          TINYINT(1)          NOT NULL DEFAULT 1,
-			PRIMARY KEY (id),
+			PRIMARY KEY  (id),
 			KEY order_position (order_position)
 		) $charset_collate;";
 
@@ -66,10 +66,10 @@ class ProcessFlow_Activator {
 			id                BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
 			order_id          BIGINT(20) UNSIGNED NOT NULL,
 			stage_id          BIGINT(20) UNSIGNED NOT NULL,
-			entered_at        DATETIME            NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			entered_at        DATETIME            NOT NULL,
 			completed_at      DATETIME                     DEFAULT NULL,
 			notification_sent TINYINT(1)          NOT NULL DEFAULT 0,
-			PRIMARY KEY (id),
+			PRIMARY KEY  (id),
 			KEY order_id (order_id),
 			KEY stage_id (stage_id)
 		) $charset_collate;";
@@ -83,7 +83,7 @@ class ProcessFlow_Activator {
 			field_type  VARCHAR(50)         NOT NULL DEFAULT 'text',
 			is_required TINYINT(1)          NOT NULL DEFAULT 0,
 			field_order INT(11)             NOT NULL DEFAULT 0,
-			PRIMARY KEY (id)
+			PRIMARY KEY  (id)
 		) $charset_collate;";
 
 		dbDelta( $sql_orders );
