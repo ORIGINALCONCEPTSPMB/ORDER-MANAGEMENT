@@ -74,7 +74,7 @@ $stages = $db->get_stages();
 					</div>
 
 					<div class="pf-form-group">
-						<label for="pf-stage-color"><?php esc_html_e( 'Colour', 'processflow-manager' ); ?></label>
+						<label for="pf-stage-color"><?php esc_html_e( 'Color', 'processflow-manager' ); ?></label>
 						<input type="text" id="pf-stage-color" name="stage_color" class="pf-color-picker" value="#3498db" data-default-color="#3498db">
 					</div>
 
