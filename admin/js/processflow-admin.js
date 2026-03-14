@@ -48,6 +48,7 @@
 			this.bindSearch();
 			this.bindColorPickers();
 			this.bindWhatsAppSend();
+			this.bindBackupRestore();
 		},
 
 		// -------------------------------------------------------------- //
@@ -408,12 +409,17 @@
 					this.notice('Please select at least one order.', 'info');
 					return;
 				}
+				// Pre-open window synchronously to avoid Safari popup blocker.
+				const win = window.open('', '_blank');
 				this.post('processflow_get_labels_html', { order_ids: ids }).done((res) => {
-					if (res.success) {
-						const win = window.open('', '_blank');
+					if (res.success && win) {
 						win.document.write(res.data.html);
 						win.document.close();
+					} else if (win) {
+						win.close();
 					}
+				}).fail(() => {
+					if (win) win.close();
 				});
 			});
 
@@ -486,21 +492,89 @@
 			$(document).on('click', '.pf-send-whatsapp', (e) => {
 				const $btn = $(e.currentTarget).prop('disabled', true);
 				const id   = $btn.data('id');
+				// Pre-open a window synchronously so Safari's popup blocker does not
+				// block the window.open() inside the async AJAX callback.
+				const waWin = window.open('', '_blank');
 				this.post('processflow_send_whatsapp_notification', { order_id: id }).done((res) => {
 					if (res.success) {
-						// Open the WhatsApp deep-link in a new tab.
-						if (res.data.wa_url && res.data.wa_url !== '#') {
-							window.open(res.data.wa_url, '_blank', 'noopener,noreferrer');
+						if (res.data.wa_url && res.data.wa_url !== '#' && waWin) {
+							waWin.location.href = res.data.wa_url;
+						} else if (waWin) {
+							waWin.close();
 						}
 						this.notice(res.data.message);
 						this.reloadOrderTable();
 					} else {
+						if (waWin) waWin.close();
 						this.notice(res.data.message, 'error');
 					}
 				}).fail(() => {
+					if (waWin) waWin.close();
 					this.notice(this.strings.error, 'error');
 				}).always(() => {
 					$btn.prop('disabled', false);
+				});
+			});
+		},
+
+		// -------------------------------------------------------------- //
+		// Backup & Restore                                                 //
+		// -------------------------------------------------------------- //
+		bindBackupRestore() {
+			// Export backup – GET download link.
+			$(document).on('click', '#pf-btn-export-backup', () => {
+				const cfg = window.processflowAdmin || {};
+				const url = (cfg.ajax_url || '') +
+					'?action=processflow_export_backup' +
+					'&nonce=' + encodeURIComponent(cfg.processflow_ajax_nonce || '');
+				const a = document.createElement('a');
+				a.href = url;
+				a.download = '';
+				document.body.appendChild(a);
+				a.click();
+				document.body.removeChild(a);
+			});
+
+			// Import backup – file upload.
+			$(document).on('change', '#pf-backup-file', function () {
+				const name = this.files[0] ? this.files[0].name : 'No file selected';
+				$('#pf-backup-file-name').text(name);
+			});
+
+			$(document).on('submit', '#pf-import-backup-form', (e) => {
+				e.preventDefault();
+				const fileInput = document.getElementById('pf-backup-file');
+				if (!fileInput || !fileInput.files[0]) {
+					this.notice('Please select a backup file.', 'error', '#pf-backup-notice');
+					return;
+				}
+				const cfg = window.processflowAdmin || {};
+				const formData = new FormData();
+				formData.append('action', 'processflow_import_backup');
+				formData.append('nonce', cfg.processflow_ajax_nonce || '');
+				formData.append('backup_file', fileInput.files[0]);
+
+				const $btn = $('#pf-import-backup-submit').prop('disabled', true).text('Restoring…');
+				$('#pf-backup-notice').html('');
+
+				$.ajax({
+					url:         cfg.ajax_url || '',
+					type:        'POST',
+					data:        formData,
+					processData: false,
+					contentType: false,
+				}).done((res) => {
+					res.success
+						? this.notice(res.data.message, 'success', '#pf-backup-notice')
+						: this.notice(res.data.message, 'error',   '#pf-backup-notice');
+					if (res.success) {
+						document.getElementById('pf-import-backup-form').reset();
+						$('#pf-backup-file-name').text('No file selected');
+					}
+				}).fail(() => {
+					this.notice('Restore failed. Please try again.', 'error', '#pf-backup-notice');
+				}).always(() => {
+					$btn.prop('disabled', false).text('⬆ Restore Backup');
 				});
 			});
 		},

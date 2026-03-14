@@ -59,7 +59,10 @@ class ProcessFlow_QR_Engine {
 	}
 
 	/**
-	 * Return the Google Charts API URL that renders the QR PNG.
+	 * Return a QR code image URL that renders the QR PNG.
+	 *
+	 * Uses the free api.qrserver.com service (replaces the retired Google
+	 * Charts QR endpoint which was shut down in 2023).
 	 *
 	 * @param int $order_id Order ID.
 	 * @return string|WP_Error
@@ -72,7 +75,7 @@ class ProcessFlow_QR_Engine {
 
 		$scan_url = $this->get_scan_url( $order_id, $order->qr_code_hash );
 
-		return 'https://chart.googleapis.com/chart?chs=300x300&cht=qr&chl=' . rawurlencode( $scan_url ) . '&choe=UTF-8';
+		return 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&ecc=M&data=' . rawurlencode( $scan_url );
 	}
 
 	/**

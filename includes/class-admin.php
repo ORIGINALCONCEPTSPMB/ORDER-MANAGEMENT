@@ -328,6 +328,8 @@ class ProcessFlow_Admin {
 			'processflow_import_csv',
 			'processflow_csv_template',
 			'processflow_send_whatsapp_notification',
+			'processflow_export_backup',
+			'processflow_import_backup',
 		);
 
 		foreach ( $actions as $action ) {
@@ -335,6 +337,8 @@ class ProcessFlow_Admin {
 		}
 		// These are also available to non-WP-logged-in users authenticated via shortcode session.
 		add_action( 'wp_ajax_nopriv_processflow_send_whatsapp_notification', array( $this, 'dispatch_ajax' ) );
+		add_action( 'wp_ajax_nopriv_processflow_export_backup', array( $this, 'dispatch_ajax' ) );
+		add_action( 'wp_ajax_nopriv_processflow_import_backup', array( $this, 'dispatch_ajax' ) );
 		add_action( 'wp_ajax_nopriv_processflow_csv_template', array( $this, 'dispatch_ajax' ) );
 		add_action( 'wp_ajax_nopriv_processflow_get_orders_json', array( $this, 'dispatch_ajax' ) );
 		add_action( 'wp_ajax_nopriv_processflow_create_order', array( $this, 'dispatch_ajax' ) );
@@ -362,8 +366,9 @@ class ProcessFlow_Admin {
 	 * Central AJAX dispatcher – verifies nonce then calls the right method.
 	 */
 	public function dispatch_ajax() {
-		// CSV template is public (nonce still required).
-		$action = isset( $_POST['action'] ) ? sanitize_key( wp_unslash( $_POST['action'] ) ) : '';
+		// Read action from either POST or GET (the CSV-template download uses a GET link).
+		$action = isset( $_POST['action'] ) ? sanitize_key( wp_unslash( $_POST['action'] ) )
+		        : ( isset( $_GET['action'] ) ? sanitize_key( wp_unslash( $_GET['action'] ) ) : '' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 
 		// Nonce check.
 		check_ajax_referer( 'processflow_admin_nonce', 'nonce' );
@@ -400,6 +405,8 @@ class ProcessFlow_Admin {
 			'processflow_delete_pf_user',
 			'processflow_get_pf_users',
 			'processflow_sync_invoice_ninja',
+			'processflow_export_backup',
+			'processflow_import_backup',
 		);
 
 		if ( in_array( $action, $admin_only_actions, true )
@@ -478,6 +485,12 @@ class ProcessFlow_Admin {
 				break;
 			case 'processflow_send_whatsapp_notification':
 				$this->ajax_send_whatsapp_notification();
+				break;
+			case 'processflow_export_backup':
+				$this->ajax_export_backup();
+				break;
+			case 'processflow_import_backup':
+				$this->ajax_import_backup();
 				break;
 			default:
 				wp_send_json_error( array( 'message' => __( 'Unknown action.', 'processflow-manager' ) ) );
@@ -935,6 +948,213 @@ class ProcessFlow_Admin {
 		exit;
 	}
 
+	// ------------------------------------------------------------------ //
+	// Backup & Restore                                                     //
+	// ------------------------------------------------------------------ //
+
+	/**
+	 * Export a full JSON backup of all orders, stages, settings, custom fields
+	 * and platform users (passwords excluded).
+	 */
+	private function ajax_export_backup() {
+		global $wpdb;
+
+		$orders = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+			"SELECT * FROM {$wpdb->prefix}processflow_orders ORDER BY id ASC"
+		) ?: array();
+
+		$stages = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+			"SELECT * FROM {$wpdb->prefix}processflow_stages ORDER BY order_position ASC"
+		) ?: array();
+
+		$custom_fields = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+			"SELECT * FROM {$wpdb->prefix}processflow_custom_fields ORDER BY field_order ASC"
+		) ?: array();
+
+		$users = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+			"SELECT id, username, email, role, is_active, created_at FROM {$wpdb->prefix}processflow_users ORDER BY id ASC"
+		) ?: array();
+
+		$history = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+			"SELECT * FROM {$wpdb->prefix}processflow_stage_history ORDER BY id ASC"
+		) ?: array();
+
+		$backup = array(
+			'plugin'      => 'ProcessFlow Manager',
+			'version'     => PROCESSFLOW_VERSION,
+			'exported_at' => current_time( 'mysql' ),
+			'data'        => array(
+				'settings'      => get_option( 'processflow_settings', array() ),
+				'stages'        => $stages,
+				'orders'        => $orders,
+				'stage_history' => $history,
+				'custom_fields' => $custom_fields,
+				'users'         => $users,
+			),
+		);
+
+		$filename = 'processflow-backup-' . current_time( 'Y-m-d_H-i-s' ) . '.json';
+
+		header( 'Content-Type: application/json; charset=utf-8' );
+		header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
+		header( 'Pragma: no-cache' );
+		header( 'Expires: 0' );
+
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		echo wp_json_encode( $backup, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE );
+		exit;
+	}
+
+	/**
+	 * Import a JSON backup file and restore all data.
+	 *
+	 * Existing data is preserved; records are only added if they don't already
+	 * exist (matched by their original ID).  Stages and orders are reconciled
+	 * so that restored orders can still reference the correct stage IDs.
+	 */
+	private function ajax_import_backup() {
+		if ( empty( $_FILES['backup_file'] ) || ! isset( $_FILES['backup_file']['tmp_name'] ) ) {
+			wp_send_json_error( array( 'message' => __( 'No file uploaded.', 'processflow-manager' ) ) );
+		}
+
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		$tmp_path = $_FILES['backup_file']['tmp_name'];
+		if ( ! is_uploaded_file( $tmp_path ) ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid file upload.', 'processflow-manager' ) ) );
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		$json = file_get_contents( $tmp_path );
+		if ( false === $json ) {
+			wp_send_json_error( array( 'message' => __( 'Could not read backup file.', 'processflow-manager' ) ) );
+		}
+
+		$backup = json_decode( $json, true );
+		if ( JSON_ERROR_NONE !== json_last_error()
+			|| empty( $backup['data'] )
+			|| ! is_array( $backup['data'] )
+		) {
+			wp_send_json_error( array( 'message' => __( 'Invalid backup file format.', 'processflow-manager' ) ) );
+		}
+
+		global $wpdb;
+		$data     = $backup['data'];
+		$imported = array( 'orders' => 0, 'stages' => 0, 'custom_fields' => 0, 'users' => 0 );
+
+		// ---- Settings --------------------------------------------------- //
+		if ( ! empty( $data['settings'] ) && is_array( $data['settings'] ) ) {
+			$existing = get_option( 'processflow_settings', array() );
+			update_option( 'processflow_settings', array_merge( $existing, $data['settings'] ) );
+		}
+
+		// ---- Stages (insert only if ID does not exist) ------------------ //
+		if ( ! empty( $data['stages'] ) && is_array( $data['stages'] ) ) {
+			foreach ( $data['stages'] as $stage ) {
+				$exists = $wpdb->get_var( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+					$wpdb->prepare( "SELECT id FROM {$wpdb->prefix}processflow_stages WHERE id = %d", $stage['id'] )
+				);
+				if ( ! $exists ) {
+					$wpdb->insert( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+						$wpdb->prefix . 'processflow_stages',
+						array(
+							'id'                => (int) $stage['id'],
+							'name'              => sanitize_text_field( $stage['name'] ?? '' ),
+							'order_position'    => (int) ( $stage['order_position'] ?? 0 ),
+							'color'             => sanitize_hex_color( $stage['color'] ?? '#000000' ) ?: '#000000',
+							'whatsapp_template' => sanitize_textarea_field( $stage['whatsapp_template'] ?? '' ),
+							'is_active'         => (int) ( $stage['is_active'] ?? 1 ),
+						)
+					);
+					$imported['stages']++;
+				}
+			}
+		}
+
+		// ---- Orders (insert only if ID does not exist) ------------------ //
+		if ( ! empty( $data['orders'] ) && is_array( $data['orders'] ) ) {
+			foreach ( $data['orders'] as $order ) {
+				$exists = $wpdb->get_var( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+					$wpdb->prepare( "SELECT id FROM {$wpdb->prefix}processflow_orders WHERE id = %d", $order['id'] )
+				);
+				if ( ! $exists ) {
+					$now = current_time( 'mysql' );
+					$wpdb->insert( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+						$wpdb->prefix . 'processflow_orders',
+						array(
+							'id'            => (int) $order['id'],
+							'customer_name' => sanitize_text_field( $order['customer_name'] ?? '' ),
+							'business_name' => sanitize_text_field( $order['business_name'] ?? '' ),
+							'whatsapp'      => sanitize_text_field( $order['whatsapp'] ?? '' ),
+							'job_details'   => sanitize_textarea_field( $order['job_details'] ?? '' ),
+							'current_stage' => ! empty( $order['current_stage'] ) ? (int) $order['current_stage'] : null,
+							'created_at'    => sanitize_text_field( $order['created_at'] ?? $now ),
+							'updated_at'    => sanitize_text_field( $order['updated_at'] ?? $now ),
+							'qr_code_hash'  => sanitize_text_field( $order['qr_code_hash'] ?? '' ),
+							'custom_fields' => ! empty( $order['custom_fields'] ) ? sanitize_textarea_field( $order['custom_fields'] ) : null,
+						)
+					);
+					$imported['orders']++;
+				}
+			}
+		}
+
+		// ---- Custom fields (insert only if ID does not exist) ----------- //
+		if ( ! empty( $data['custom_fields'] ) && is_array( $data['custom_fields'] ) ) {
+			foreach ( $data['custom_fields'] as $cf ) {
+				$exists = $wpdb->get_var( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+					$wpdb->prepare( "SELECT id FROM {$wpdb->prefix}processflow_custom_fields WHERE id = %d", $cf['id'] )
+				);
+				if ( ! $exists ) {
+					$wpdb->insert( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+						$wpdb->prefix . 'processflow_custom_fields',
+						array(
+							'id'          => (int) $cf['id'],
+							'field_label' => sanitize_text_field( $cf['field_label'] ?? '' ),
+							'field_type'  => sanitize_key( $cf['field_type'] ?? 'text' ),
+							'is_required' => (int) ( $cf['is_required'] ?? 0 ),
+							'field_order' => (int) ( $cf['field_order'] ?? 0 ),
+						)
+					);
+					$imported['custom_fields']++;
+				}
+			}
+		}
+
+		// ---- Platform users (insert only if username does not exist) ---- //
+		if ( ! empty( $data['users'] ) && is_array( $data['users'] ) ) {
+			foreach ( $data['users'] as $user ) {
+				$exists = $wpdb->get_var( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+					$wpdb->prepare( "SELECT id FROM {$wpdb->prefix}processflow_users WHERE username = %s", $user['username'] ?? '' )
+				);
+				if ( ! $exists ) {
+					$wpdb->insert( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+						$wpdb->prefix . 'processflow_users',
+						array(
+							'username'      => sanitize_user( $user['username'] ?? '' ),
+							'email'         => sanitize_email( $user['email'] ?? '' ),
+							'password_hash' => '', // Passwords are not exported for security reasons.
+							'role'          => sanitize_key( $user['role'] ?? 'operator' ),
+							'is_active'     => (int) ( $user['is_active'] ?? 1 ),
+							'created_at'    => sanitize_text_field( $user['created_at'] ?? current_time( 'mysql' ) ),
+						)
+					);
+					$imported['users']++;
+				}
+			}
+		}
+
+		wp_send_json_success( array(
+			'message' => sprintf(
+				/* translators: 1: orders, 2: stages, 3: users */
+				__( 'Restore complete: %1$d orders, %2$d stages, %3$d users added.', 'processflow-manager' ),
+				$imported['orders'],
+				$imported['stages'],
+				$imported['users']
+			),
+			'imported' => $imported,
+		) );
+	}
+
 	private function ajax_import_csv() {
 		if ( empty( $_FILES['csv_file'] ) || ! isset( $_FILES['csv_file']['tmp_name'] ) ) {
 			wp_send_json_error( array( 'message' => __( 'No file uploaded.', 'processflow-manager' ) ) );
@@ -1077,7 +1297,15 @@ class ProcessFlow_Admin {
 		if ( $token ) {
 			delete_transient( 'processflow_admin_session_' . $token );
 		}
-		setcookie( 'pf_admin_token', '', time() - HOUR_IN_SECONDS, COOKIEPATH, COOKIE_DOMAIN, is_ssl(), true );
+		// PHP 7.3+ options array: SameSite=Lax ensures the cookie works in Safari (ITP).
+		setcookie( 'pf_admin_token', '', array(
+			'expires'  => time() - HOUR_IN_SECONDS,
+			'path'     => COOKIEPATH,
+			'domain'   => COOKIE_DOMAIN,
+			'secure'   => is_ssl(),
+			'httponly' => true,
+			'samesite' => 'Lax',
+		) );
 		unset( $_COOKIE['pf_admin_token'] );
 	}
 
@@ -1127,7 +1355,15 @@ class ProcessFlow_Admin {
 	private function set_shortcode_session( string $role ) {
 		$token = wp_generate_password( 32, false );
 		set_transient( 'processflow_admin_session_' . $token, array( 'role' => $role ), HOUR_IN_SECONDS * 4 );
-		setcookie( 'pf_admin_token', $token, time() + HOUR_IN_SECONDS * 4, COOKIEPATH, COOKIE_DOMAIN, is_ssl(), true );
+		// PHP 7.3+ options array: SameSite=Lax ensures the cookie works in Safari (ITP).
+		setcookie( 'pf_admin_token', $token, array(
+			'expires'  => time() + HOUR_IN_SECONDS * 4,
+			'path'     => COOKIEPATH,
+			'domain'   => COOKIE_DOMAIN,
+			'secure'   => is_ssl(),
+			'httponly' => true,
+			'samesite' => 'Lax',
+		) );
 		$_COOKIE['pf_admin_token'] = $token;
 	}
 

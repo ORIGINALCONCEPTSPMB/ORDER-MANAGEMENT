@@ -752,6 +752,7 @@ if ( ! in_array( $active_tab, $allowed_tabs, true ) ) {
 				<button class="pf-tab active" data-target="pf-stab-general"><?php esc_html_e( 'General', 'processflow-manager' ); ?></button>
 				<button class="pf-tab" data-target="pf-stab-security"><?php esc_html_e( 'Security', 'processflow-manager' ); ?></button>
 				<button class="pf-tab" data-target="pf-stab-fields"><?php esc_html_e( 'Custom Fields', 'processflow-manager' ); ?></button>
+				<button class="pf-tab" data-target="pf-stab-backup"><?php esc_html_e( 'Backup & Restore', 'processflow-manager' ); ?></button>
 			</div>
 
 			<div id="pf-stab-general" class="pf-tab-content active">
@@ -868,6 +869,67 @@ if ( ! in_array( $active_tab, $allowed_tabs, true ) ) {
 					</div>
 				</div>
 			</div>
+
+			<!-- Backup & Restore -->
+			<div id="pf-stab-backup" class="pf-tab-content">
+				<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start;">
+
+					<!-- Export -->
+					<div class="pf-card">
+						<div class="pf-card__header">
+							<h3 class="pf-card__title"><?php esc_html_e( 'Export Backup', 'processflow-manager' ); ?></h3>
+						</div>
+						<div class="pf-card__body">
+							<p style="color:#555;margin-top:0;">
+								<?php esc_html_e( 'Download a complete JSON backup of all orders, stages, settings, custom fields and platform users. Store this file safely — it can be used to restore your data.', 'processflow-manager' ); ?>
+							</p>
+							<ul style="color:#555;margin:0 0 16px 16px;padding:0;">
+								<li><?php esc_html_e( 'All orders and stage history', 'processflow-manager' ); ?></li>
+								<li><?php esc_html_e( 'Workflow stages and templates', 'processflow-manager' ); ?></li>
+								<li><?php esc_html_e( 'Platform users (passwords excluded)', 'processflow-manager' ); ?></li>
+								<li><?php esc_html_e( 'Custom fields and settings', 'processflow-manager' ); ?></li>
+							</ul>
+							<button id="pf-btn-export-backup" class="pf-btn pf-btn--primary">
+								&#8659; <?php esc_html_e( 'Download Backup', 'processflow-manager' ); ?>
+							</button>
+						</div>
+					</div>
+
+					<!-- Import / Restore -->
+					<div class="pf-card">
+						<div class="pf-card__header">
+							<h3 class="pf-card__title"><?php esc_html_e( 'Restore Backup', 'processflow-manager' ); ?></h3>
+						</div>
+						<div class="pf-card__body">
+							<div id="pf-backup-notice"></div>
+							<p style="color:#555;margin-top:0;">
+								<?php esc_html_e( 'Upload a JSON backup file to restore your data. Existing records are preserved — only records that do not already exist will be added.', 'processflow-manager' ); ?>
+							</p>
+							<p style="color:#c0392b;margin:0 0 16px;font-weight:600;font-size:13px;">
+								&#9888; <?php esc_html_e( 'Note: User passwords are not included in the backup. Restored user accounts must have their passwords reset.', 'processflow-manager' ); ?>
+							</p>
+							<form id="pf-import-backup-form">
+								<div class="pf-form-group">
+									<label><?php esc_html_e( 'Select Backup File (.json)', 'processflow-manager' ); ?></label>
+									<div class="pf-file-drop" style="padding:20px;text-align:center;border:2px dashed #c3c4c7;border-radius:6px;cursor:pointer;" onclick="document.getElementById('pf-backup-file').click()">
+										<input type="file" name="backup_file" id="pf-backup-file" accept=".json,application/json" required style="display:none;">
+										<div style="color:#646970;">
+											<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="30" height="30" style="margin:0 auto 8px;display:block;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+											<span><?php esc_html_e( 'Click to select JSON backup', 'processflow-manager' ); ?></span><br>
+											<small id="pf-backup-file-name" style="color:#787c82;"><?php esc_html_e( 'No file selected', 'processflow-manager' ); ?></small>
+										</div>
+									</div>
+								</div>
+								<button type="submit" class="pf-btn pf-btn--primary" id="pf-import-backup-submit">
+									&#8679; <?php esc_html_e( 'Restore Backup', 'processflow-manager' ); ?>
+								</button>
+							</form>
+						</div>
+					</div>
+
+				</div>
+			</div>
+
 		</section>
 		<?php endif; ?>
 
