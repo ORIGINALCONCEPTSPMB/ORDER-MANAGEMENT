@@ -24,20 +24,89 @@ class ProcessFlow_InvoiceNinja {
 	 * @param string $token X-Api-Token for the Invoice Ninja API.
 	 * @return array|WP_Error Array of order-data arrays or WP_Error on failure.
 	 */
-	public function sync_invoices( string $url, string $token ) {
-		if ( empty( $url ) || empty( $token ) ) {
-			return new WP_Error( 'missing_config', __( 'Invoice Ninja URL and API token are required.', 'processflow-manager' ) );
+	/**
+	 * Extract the invoice number from an Invoice Ninja invoice row.
+	 *
+	 * @param array $invoice Raw invoice array from the API.
+	 * @return string
+	 */
+	private function extract_invoice_number( array $invoice ): string {
+		return $invoice['number'] ?? ( $invoice['invoice_number'] ?? '' );
+	}
+
+	/**
+	 * Map a single Invoice Ninja raw invoice + client into an order-data array
+	 * that also includes display-only fields (amount, status, due_date).
+	 *
+	 * @param array $invoice Raw invoice from API.
+	 * @return array
+	 */
+	private function map_invoice_data( array $invoice ): array {
+		$status_map = array( 1 => 'Draft', 2 => 'Sent', 3 => 'Partial', 4 => 'Paid', 5 => 'Overdue', 6 => 'Cancelled' );
+
+		$client       = isset( $invoice['client'] ) && is_array( $invoice['client'] ) ? $invoice['client'] : array();
+		$client_name  = $client['name'] ?? ( $client['display_name'] ?? __( 'Unknown', 'processflow-manager' ) );
+		$company_name = ! empty( $client['company_name'] ) ? $client['company_name'] : $client_name;
+
+		// Extract best phone/WhatsApp contact from client contacts array.
+		$whatsapp = '';
+		if ( ! empty( $client['contacts'] ) && is_array( $client['contacts'] ) ) {
+			foreach ( $client['contacts'] as $contact ) {
+				if ( ! empty( $contact['phone'] ) ) {
+					$whatsapp = $contact['phone'];
+					break;
+				}
+			}
+		}
+		if ( empty( $whatsapp ) && ! empty( $client['phone'] ) ) {
+			$whatsapp = $client['phone'];
 		}
 
+		$invoice_number = $this->extract_invoice_number( $invoice );
+		$amount         = isset( $invoice['amount'] ) ? number_format( (float) $invoice['amount'], 2 ) : '0.00';
+		$due_date       = $invoice['due_date'] ?? '';
+		$status_id      = isset( $invoice['status_id'] ) ? (int) $invoice['status_id'] : 0;
+		$status_label   = $status_map[ $status_id ] ?? 'Unknown';
+
+		$job_details = sprintf(
+			/* translators: 1: invoice number, 2: amount, 3: status, 4: due date */
+			__( 'Invoice #%1$s | Amount: %2$s | Status: %3$s | Due: %4$s', 'processflow-manager' ),
+			$invoice_number,
+			$amount,
+			$status_label,
+			$due_date
+		);
+
+		return array(
+			'invoice_id'     => $invoice['id'] ?? '',
+			'invoice_number' => $invoice_number,
+			'customer_name'  => $client_name,
+			'business_name'  => $company_name,
+			'whatsapp'       => $whatsapp,
+			'amount'         => $amount,
+			'status'         => $status_label,
+			'due_date'       => $due_date,
+			'job_details'    => $job_details,
+		);
+	}
+
+	/**
+	 * Helper: make a single authenticated GET request to the Invoice Ninja invoices endpoint.
+	 *
+	 * @param string $url   Base URL.
+	 * @param string $token API token.
+	 * @return array|WP_Error Decoded 'data' array or WP_Error.
+	 */
+	private function fetch_raw_invoices( string $url, string $token ) {
 		$endpoint = trailingslashit( esc_url_raw( $url ) ) . 'api/v1/invoices?per_page=100&include=client';
 
 		$response = wp_remote_get(
 			$endpoint,
 			array(
 				'headers' => array(
-					'X-Api-Token'  => $token,
+					'X-Api-Token'      => $token,
 					'X-Requested-With' => 'XMLHttpRequest',
-					'Content-Type' => 'application/json',
+					'Content-Type'     => 'application/json',
 				),
 				'timeout' => 30,
 			)
@@ -78,50 +147,36 @@ class ProcessFlow_InvoiceNinja {
 			return new WP_Error( 'parse_error', __( 'Unexpected response format from Invoice Ninja.', 'processflow-manager' ) );
 		}
 
+		return $data['data'];
+	}
+
+	/**
+	 * Fetch all invoices from Invoice Ninja and map them to the ProcessFlow order
+	 * data format so they can be imported as orders.
+	 *
+	 * @param string $url   Base URL of the Invoice Ninja instance.
+	 * @param string $token X-Api-Token.
+	 * @return array|WP_Error
+	 */
+	public function sync_invoices( string $url, string $token ) {
+		if ( empty( $url ) || empty( $token ) ) {
+			return new WP_Error( 'missing_config', __( 'Invoice Ninja URL and API token are required.', 'processflow-manager' ) );
+		}
+
+		$raw = $this->fetch_raw_invoices( $url, $token );
+		if ( is_wp_error( $raw ) ) {
+			return $raw;
+		}
+
 		$orders = array();
-
-		foreach ( $data['data'] as $invoice ) {
-			$client       = isset( $invoice['client'] ) && is_array( $invoice['client'] ) ? $invoice['client'] : array();
-			$client_name  = $client['name'] ?? ( $client['display_name'] ?? __( 'Unknown', 'processflow-manager' ) );
-			$company_name = ! empty( $client['company_name'] ) ? $client['company_name'] : $client_name;
-
-			// Extract best phone/WhatsApp contact from client contacts array.
-			$whatsapp = '';
-			if ( ! empty( $client['contacts'] ) && is_array( $client['contacts'] ) ) {
-				foreach ( $client['contacts'] as $contact ) {
-					if ( ! empty( $contact['phone'] ) ) {
-						$whatsapp = $contact['phone'];
-						break;
-					}
-				}
-			}
-			if ( empty( $whatsapp ) && ! empty( $client['phone'] ) ) {
-				$whatsapp = $client['phone'];
-			}
-
-			$invoice_number = $invoice['number'] ?? ( $invoice['invoice_number'] ?? '' );
-			$amount         = isset( $invoice['amount'] ) ? number_format( (float) $invoice['amount'], 2 ) : '';
-			$due_date       = $invoice['due_date'] ?? '';
-			// Invoice Ninja v5 status IDs (https://invoice-ninja.readthedocs.io/en/latest/api.html).
-			$status_map = array( 1 => 'Draft', 2 => 'Sent', 3 => 'Partial', 4 => 'Paid', 5 => 'Overdue', 6 => 'Cancelled' );
-			$status_id      = isset( $invoice['status_id'] ) ? (int) $invoice['status_id'] : 0;
-			$status_label   = $status_map[ $status_id ] ?? 'Unknown';
-
-			$job_details = sprintf(
-				/* translators: 1: invoice number, 2: amount, 3: status, 4: due date */
-				__( 'Invoice #%1$s | Amount: %2$s | Status: %3$s | Due: %4$s', 'processflow-manager' ),
-				$invoice_number,
-				$amount,
-				$status_label,
-				$due_date
-			);
-
+		foreach ( $raw as $invoice ) {
+			$mapped   = $this->map_invoice_data( $invoice );
 			$orders[] = array(
-				'customer_name' => $client_name,
-				'business_name' => $company_name,
-				'whatsapp'      => $whatsapp,
-				'job_details'   => $job_details,
-				'invoice_id'    => $invoice['id'] ?? '',
+				'customer_name'  => $mapped['customer_name'],
+				'business_name'  => $mapped['business_name'],
+				'whatsapp'       => $mapped['whatsapp'],
+				'invoice_number' => $mapped['invoice_number'],
+				'job_details'    => $mapped['job_details'],
 			);
 		}
 
@@ -133,67 +188,23 @@ class ProcessFlow_InvoiceNinja {
 	 * WITHOUT importing them.  Used by the "Browse Invoice Ninja" feature in the
 	 * Orders tab so the user can cherry-pick which invoices to import.
 	 *
-	 * Each returned item has:
-	 *   invoice_id, invoice_number, client_name, company_name, whatsapp,
-	 *   amount, status, due_date, job_details (pre-formatted).
-	 *
 	 * @param string $url   Base URL of the Invoice Ninja instance.
 	 * @param string $token X-Api-Token.
 	 * @return array|WP_Error
 	 */
 	public function fetch_invoices( string $url, string $token ) {
-		// Re-use the existing sync_invoices logic to get mapped data.
-		$mapped = $this->sync_invoices( $url, $token );
-		if ( is_wp_error( $mapped ) ) {
-			return $mapped;
+		if ( empty( $url ) || empty( $token ) ) {
+			return new WP_Error( 'missing_config', __( 'Invoice Ninja URL and API token are required.', 'processflow-manager' ) );
 		}
 
-		// Re-fetch the raw data to include extra display fields (amount, status, due_date).
-		$endpoint = trailingslashit( esc_url_raw( $url ) ) . 'api/v1/invoices?per_page=100&include=client';
-		$response = wp_remote_get(
-			$endpoint,
-			array(
-				'headers' => array(
-					'X-Api-Token'      => $token,
-					'X-Requested-With' => 'XMLHttpRequest',
-					'Content-Type'     => 'application/json',
-				),
-				'timeout' => 30,
-			)
-		);
-
-		if ( is_wp_error( $response ) ) {
-			return $mapped; // Return basic data if second request fails.
+		$raw = $this->fetch_raw_invoices( $url, $token );
+		if ( is_wp_error( $raw ) ) {
+			return $raw;
 		}
 
-		$body = wp_remote_retrieve_body( $response );
-		$data = json_decode( $body, true );
-
-		if ( json_last_error() !== JSON_ERROR_NONE || ! isset( $data['data'] ) ) {
-			return $mapped;
-		}
-
-		$status_map = array( 1 => 'Draft', 2 => 'Sent', 3 => 'Partial', 4 => 'Paid', 5 => 'Overdue', 6 => 'Cancelled' );
-		$result     = array();
-
-		foreach ( $data['data'] as $idx => $invoice ) {
-			$base           = isset( $mapped[ $idx ] ) ? $mapped[ $idx ] : array();
-			$invoice_number = $invoice['number'] ?? ( $invoice['invoice_number'] ?? '' );
-			$status_id      = isset( $invoice['status_id'] ) ? (int) $invoice['status_id'] : 0;
-			$amount         = isset( $invoice['amount'] ) ? number_format( (float) $invoice['amount'], 2 ) : '0.00';
-			$due_date       = $invoice['due_date'] ?? '';
-
-			$result[] = array(
-				'invoice_id'     => $invoice['id'] ?? '',
-				'invoice_number' => $invoice_number,
-				'customer_name'  => $base['customer_name'] ?? '',
-				'business_name'  => $base['business_name'] ?? '',
-				'whatsapp'       => $base['whatsapp'] ?? '',
-				'amount'         => $amount,
-				'status'         => $status_map[ $status_id ] ?? 'Unknown',
-				'due_date'       => $due_date,
-				'job_details'    => $base['job_details'] ?? '',
-			);
+		$result = array();
+		foreach ( $raw as $invoice ) {
+			$result[] = $this->map_invoice_data( $invoice );
 		}
 
 		return $result;
