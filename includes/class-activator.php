@@ -38,13 +38,16 @@ class ProcessFlow_Activator {
 			job_details    TEXT                NOT NULL,
 			product_lines  LONGTEXT,
 			current_stage  BIGINT(20) UNSIGNED          DEFAULT NULL,
+			is_archived    TINYINT(1)          NOT NULL DEFAULT 0,
+			archived_at    DATETIME                     DEFAULT NULL,
 			created_at     DATETIME            NOT NULL,
 			updated_at     DATETIME            NOT NULL,
 			qr_code_hash   VARCHAR(64)         NOT NULL DEFAULT '',
 			custom_fields  LONGTEXT,
 			PRIMARY KEY  (id),
 			KEY current_stage (current_stage),
-			KEY qr_code_hash (qr_code_hash)
+			KEY qr_code_hash (qr_code_hash),
+			KEY is_archived (is_archived)
 		) $charset_collate;";
 
 		// ------------------------------------------------------------------ //
@@ -238,7 +241,7 @@ class ProcessFlow_Activator {
 	public static function maybe_upgrade() {
 		$installed_ver = get_option( 'processflow_db_version', '0' );
 
-		if ( version_compare( $installed_ver, '1.2.0', '>=' ) ) {
+		if ( version_compare( $installed_ver, '1.3.0', '>=' ) ) {
 			return; // Already up to date.
 		}
 
@@ -256,17 +259,20 @@ class ProcessFlow_Activator {
 			job_details    TEXT                NOT NULL,
 			product_lines  LONGTEXT,
 			current_stage  BIGINT(20) UNSIGNED          DEFAULT NULL,
+			is_archived    TINYINT(1)          NOT NULL DEFAULT 0,
+			archived_at    DATETIME                     DEFAULT NULL,
 			created_at     DATETIME            NOT NULL,
 			updated_at     DATETIME            NOT NULL,
 			qr_code_hash   VARCHAR(64)         NOT NULL DEFAULT '',
 			custom_fields  LONGTEXT,
 			PRIMARY KEY  (id),
 			KEY current_stage (current_stage),
-			KEY qr_code_hash (qr_code_hash)
+			KEY qr_code_hash (qr_code_hash),
+			KEY is_archived (is_archived)
 		) $charset_collate;";
 
 		dbDelta( $sql_orders );
 
-		update_option( 'processflow_db_version', '1.2.0' );
+		update_option( 'processflow_db_version', '1.3.0' );
 	}
 }

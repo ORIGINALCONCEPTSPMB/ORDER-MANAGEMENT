@@ -100,15 +100,21 @@ class ProcessFlow_Database {
 		global $wpdb;
 
 		$defaults = array(
-			'search'   => '',
-			'stage'    => 0,
-			'per_page' => 20,
-			'page'     => 1,
+			'search'          => '',
+			'stage'           => 0,
+			'per_page'        => 20,
+			'page'            => 1,
+			'include_archived'=> false,
 		);
 		$args = wp_parse_args( $args, $defaults );
 
 		$where  = array( '1=1' );
 		$params = array();
+
+		// By default only show active (non-archived) orders.
+		if ( empty( $args['include_archived'] ) ) {
+			$where[] = 'is_archived = 0';
+		}
 
 		if ( ! empty( $args['search'] ) ) {
 			$like     = '%' . $wpdb->esc_like( sanitize_text_field( $args['search'] ) ) . '%';
@@ -145,6 +151,50 @@ class ProcessFlow_Database {
 			'items' => $items ?: array(),
 			'total' => $total,
 		);
+	}
+
+	/**
+	 * Archive (soft-delete) an order — moves it to the Completed section.
+	 *
+	 * @param int $id Order ID.
+	 * @return bool
+	 */
+	public function archive_order( int $id ) {
+		global $wpdb;
+
+		$result = $wpdb->update( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+			$wpdb->prefix . 'processflow_orders',
+			array(
+				'is_archived' => 1,
+				'archived_at' => current_time( 'mysql' ),
+				'updated_at'  => current_time( 'mysql' ),
+			),
+			array( 'id' => $id )
+		);
+
+		return false !== $result;
+	}
+
+	/**
+	 * Restore a previously archived order back to active orders.
+	 *
+	 * @param int $id Order ID.
+	 * @return bool
+	 */
+	public function unarchive_order( int $id ) {
+		global $wpdb;
+
+		$result = $wpdb->update( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+			$wpdb->prefix . 'processflow_orders',
+			array(
+				'is_archived' => 0,
+				'archived_at' => null,
+				'updated_at'  => current_time( 'mysql' ),
+			),
+			array( 'id' => $id )
+		);
+
+		return false !== $result;
 	}
 
 	/**

@@ -156,6 +156,8 @@ class ProcessFlow_Public {
 		add_action( 'wp_ajax_processflow_portal_login', array( $this, 'ajax_portal_login' ) );
 		add_action( 'wp_ajax_nopriv_processflow_lookup_order', array( $this, 'ajax_lookup_order' ) );
 		add_action( 'wp_ajax_processflow_lookup_order', array( $this, 'ajax_lookup_order' ) );
+		add_action( 'wp_ajax_nopriv_processflow_qr_update_stage', array( $this, 'ajax_qr_update_stage' ) );
+		add_action( 'wp_ajax_processflow_qr_update_stage', array( $this, 'ajax_qr_update_stage' ) );
 	}
 
 	/**
@@ -189,6 +191,51 @@ class ProcessFlow_Public {
 		wp_send_json_success( array(
 			'token'    => $token,
 			'order_id' => $order_id,
+		) );
+	}
+
+	/**
+	 * Update the stage for an order via the QR scan landing page.
+	 *
+	 * Authentication is done by validating the QR code hash — anyone who
+	 * has physically scanned the QR label can update the stage.  No admin
+	 * login is required, which is intentional for workshop-floor use.
+	 */
+	public function ajax_qr_update_stage() {
+		// phpcs:disable WordPress.Security.NonceVerification.Missing
+		$order_id = isset( $_POST['order_id'] ) ? absint( $_POST['order_id'] ) : 0;
+		$hash     = isset( $_POST['hash'] )     ? sanitize_text_field( wp_unslash( $_POST['hash'] ) ) : '';
+		$stage_id = isset( $_POST['stage_id'] ) ? absint( $_POST['stage_id'] ) : 0;
+		// phpcs:enable
+
+		if ( ! $order_id || ! $hash ) {
+			wp_send_json_error( array( 'message' => __( 'Missing order information.', 'processflow-manager' ) ) );
+		}
+
+		$order = $this->db->get_order( $order_id );
+		if ( ! $order ) {
+			wp_send_json_error( array( 'message' => __( 'Order not found.', 'processflow-manager' ) ) );
+		}
+
+		// Validate the QR code hash — this is the only auth check needed here.
+		if ( ! hash_equals( (string) $order->qr_code_hash, $hash ) ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid QR code.', 'processflow-manager' ) ) );
+		}
+
+		$result = $this->db->update_order( $order_id, array( 'current_stage' => $stage_id ?: null ) );
+		if ( ! $result ) {
+			wp_send_json_error( array( 'message' => __( 'Failed to update stage.', 'processflow-manager' ) ) );
+		}
+
+		$stage  = $stage_id ? $this->db->get_stage( $stage_id ) : null;
+		$wa_url = $stage_id ? $this->whatsapp->get_whatsapp_link( $order_id, $stage_id ) : '#';
+
+		wp_send_json_success( array(
+			'stage_id'   => $stage_id,
+			'stage_name' => $stage ? $stage->name : '',
+			'stage_color'=> $stage ? $stage->color : '#aaa',
+			'wa_url'     => $wa_url,
+			'message'    => __( 'Stage updated successfully.', 'processflow-manager' ),
 		) );
 	}
 

@@ -49,6 +49,10 @@
 			this.bindColorPickers();
 			this.bindWhatsAppSend();
 			this.bindBackupRestore();
+			this.bindImportFromOrders();
+			this.bindInvoiceNinjaBrowse();
+			this.bindArchiveOrder();
+			this.bindCompletedTab();
 		},
 
 		// -------------------------------------------------------------- //
@@ -355,6 +359,7 @@
 								<button class="pf-btn pf-btn--outline pf-btn--sm pf-show-qr" data-id="${o.id}" title="QR Code">⊙</button>
 								<button class="pf-btn pf-btn--success pf-btn--sm pf-advance-stage" data-id="${o.id}" title="Advance Stage">▶</button>
 								<button class="pf-btn pf-btn--sm pf-send-whatsapp" data-id="${o.id}" title="Send WhatsApp" style="background:#25d366;color:#fff;border-color:#25d366;">&#128172;</button>
+								<button class="pf-btn pf-btn--sm pf-archive-order" data-id="${o.id}" title="Mark as Completed" style="background:#8e44ad;color:#fff;border-color:#8e44ad;">&#10003;</button>
 								<button class="pf-btn pf-btn--danger pf-btn--sm pf-delete-order" data-id="${o.id}" title="Delete">✕</button>
 							</div>
 						</td>
@@ -685,6 +690,298 @@
 					$(this).attr('type', 'color').css({ height: '36px', padding: '2px 4px', width: '60px', cursor: 'pointer' });
 				});
 			}
+		},
+
+		// -------------------------------------------------------------- //
+		// CSV Import from the Orders toolbar                               //
+		// -------------------------------------------------------------- //
+		bindImportFromOrders() {
+			// "Import CSV" button in the Orders tab toolbar opens a modal with the
+			// same CSV import form that lives in the dedicated Import tab.
+			$(document).on('click', '#pf-btn-import-csv-orders', () => {
+				const html = `
+				<div class="pf-modal">
+					<div class="pf-modal__header">
+						<h3 class="pf-modal__title">Bulk Import Orders (CSV)</h3>
+						<button class="pf-modal__close" onclick="PFAdmin.closeModal()">&times;</button>
+					</div>
+					<div class="pf-modal__body">
+						<div id="pf-quick-import-notice"></div>
+						<p style="color:#555;margin-top:0;font-size:13px;">
+							Upload a CSV file with columns: <code>customer_name</code>, <code>business_name</code>,
+							<code>whatsapp</code>, <code>job_details</code>.
+							Optional: <code>invoice_number</code>, <code>stage_name</code>.
+						</p>
+						<form id="pf-quick-import-form" enctype="multipart/form-data">
+							<div class="pf-form-group">
+								<label>Select CSV File</label>
+								<input type="file" name="csv_file" id="pf-quick-csv-file" accept=".csv,text/csv" required>
+								<small id="pf-quick-file-name" style="color:#787c82;margin-top:4px;display:block;">No file selected</small>
+							</div>
+						</form>
+						<div id="pf-quick-import-result" style="margin-top:12px;"></div>
+					</div>
+					<div class="pf-modal__footer">
+						<button class="pf-btn pf-btn--outline" id="pf-quick-template-btn">&#8595; Download Template</button>
+						<button class="pf-btn pf-btn--outline" onclick="PFAdmin.closeModal()">Cancel</button>
+						<button class="pf-btn pf-btn--primary" id="pf-quick-import-submit">&#8679; Import</button>
+					</div>
+				</div>`;
+				this.openModal(html);
+			});
+
+			// File name display.
+			$(document).on('change', '#pf-quick-csv-file', function () {
+				const name = this.files[0] ? this.files[0].name : 'No file selected';
+				$('#pf-quick-file-name').text(name);
+			});
+
+			// Download template.
+			$(document).on('click', '#pf-quick-template-btn', () => {
+				const cfg = window.processflowAdmin || {};
+				const url = (cfg.ajax_url || '') +
+					'?action=processflow_csv_template' +
+					'&nonce=' + encodeURIComponent(cfg.processflow_ajax_nonce || '');
+				const a = document.createElement('a');
+				a.href = url;
+				a.download = '';
+				document.body.appendChild(a);
+				a.click();
+				document.body.removeChild(a);
+			});
+
+			// Submit import.
+			$(document).on('click', '#pf-quick-import-submit', () => {
+				const fileInput = document.getElementById('pf-quick-csv-file');
+				if (!fileInput || !fileInput.files[0]) {
+					this.notice('Please select a CSV file.', 'error', '#pf-quick-import-notice');
+					return;
+				}
+				const cfg = window.processflowAdmin || {};
+				const fd  = new FormData();
+				fd.append('action',    'processflow_import_csv');
+				fd.append('nonce',     cfg.processflow_ajax_nonce || '');
+				fd.append('csv_file',  fileInput.files[0]);
+
+				const $btn = $('#pf-quick-import-submit').prop('disabled', true).text('Importing…');
+				$('#pf-quick-import-notice').html('');
+				$('#pf-quick-import-result').html('');
+
+				$.ajax({ url: cfg.ajax_url || '', type: 'POST', data: fd, processData: false, contentType: false })
+					.done((res) => {
+						if (res.success) {
+							$('#pf-quick-import-result').html(
+								`<div class="pf-notice pf-notice--success">${res.data.message}</div>`
+							);
+							this.reloadOrderTable();
+						} else {
+							$('#pf-quick-import-result').html(
+								`<div class="pf-notice pf-notice--error">${res.data.message}</div>`
+							);
+						}
+					})
+					.fail(() => {
+						$('#pf-quick-import-result').html('<div class="pf-notice pf-notice--error">Import failed.</div>');
+					})
+					.always(() => {
+						$btn.prop('disabled', false).text('⬆ Import');
+					});
+			});
+		},
+
+		// -------------------------------------------------------------- //
+		// Invoice Ninja: browse + cherry-pick invoices from Orders toolbar //
+		// -------------------------------------------------------------- //
+		bindInvoiceNinjaBrowse() {
+			$(document).on('click', '#pf-btn-browse-invoiceninja', () => {
+				const $btn = $(document.getElementById('pf-btn-browse-invoiceninja')).prop('disabled', true).text('Loading…');
+
+				this.post('processflow_fetch_in_invoices', {}).done((res) => {
+					if (!res.success) {
+						this.notice(res.data.message, 'error');
+						return;
+					}
+					const invoices = res.data.invoices || [];
+					if (!invoices.length) {
+						this.notice('No invoices found in Invoice Ninja.', 'info');
+						return;
+					}
+
+					const rows = invoices.map((inv, idx) => `
+					<tr>
+						<td style="text-align:center;">
+							<input type="checkbox" class="pf-in-invoice-check" data-idx="${idx}" checked>
+						</td>
+						<td>${this.esc(inv.invoice_number)}</td>
+						<td>${this.esc(inv.customer_name)}</td>
+						<td>${this.esc(inv.business_name)}</td>
+						<td>${this.esc(inv.amount)}</td>
+						<td>${this.esc(inv.status)}</td>
+						<td>${this.esc(inv.due_date)}</td>
+					</tr>`).join('');
+
+					const modalHtml = `
+					<div class="pf-modal" style="max-width:860px;">
+						<div class="pf-modal__header">
+							<h3 class="pf-modal__title">Import from Invoice Ninja (${invoices.length} invoices)</h3>
+							<button class="pf-modal__close" onclick="PFAdmin.closeModal()">&times;</button>
+						</div>
+						<div class="pf-modal__body" style="max-height:400px;overflow-y:auto;">
+							<div id="pf-in-browse-notice"></div>
+							<p style="font-size:13px;color:#555;margin-top:0;">
+								Check the invoices to import as orders, then click "Import Selected".
+							</p>
+							<table class="pf-table pf-in-invoices-table" style="width:100%">
+								<thead><tr>
+									<th style="width:36px;"><input type="checkbox" id="pf-in-select-all" checked></th>
+									<th>Invoice #</th><th>Customer</th><th>Business</th>
+									<th>Amount</th><th>Status</th><th>Due</th>
+								</tr></thead>
+								<tbody>${rows}</tbody>
+							</table>
+						</div>
+						<div class="pf-modal__footer">
+							<button class="pf-btn pf-btn--outline" onclick="PFAdmin.closeModal()">Cancel</button>
+							<button class="pf-btn pf-btn--primary" id="pf-in-import-selected-btn">&#8679; Import Selected</button>
+						</div>
+					</div>`;
+
+					// Store invoice data on window for the import handler to pick up.
+					window._pfInInvoices = invoices;
+					this.openModal(modalHtml);
+				}).fail(() => {
+					this.notice(this.strings.error, 'error');
+				}).always(() => {
+					$btn.prop('disabled', false).text('▾ Invoice Ninja');
+				});
+			});
+
+			// Select-all for Invoice Ninja browse modal.
+			$(document).on('change', '#pf-in-select-all', function () {
+				$('.pf-in-invoice-check').prop('checked', $(this).is(':checked'));
+			});
+
+			// Import selected invoices.
+			$(document).on('click', '#pf-in-import-selected-btn', () => {
+				const invoices = window._pfInInvoices || [];
+				const selected = [];
+				$('.pf-in-invoice-check:checked').each(function () {
+					const idx = parseInt($(this).data('idx'), 10);
+					if (invoices[idx]) selected.push(invoices[idx]);
+				});
+
+				if (!selected.length) {
+					this.notice('No invoices selected.', 'info', '#pf-in-browse-notice');
+					return;
+				}
+
+				const $btn = $('#pf-in-import-selected-btn').prop('disabled', true).text('Importing…');
+				$('#pf-in-browse-notice').html('');
+
+				this.post('processflow_in_import_selected', { invoice_ids: JSON.stringify(selected) }).done((res) => {
+					if (res.success) {
+						$('#pf-in-browse-notice').html(
+							`<div class="pf-notice pf-notice--success">${res.data.message}</div>`
+						);
+						this.reloadOrderTable();
+					} else {
+						$('#pf-in-browse-notice').html(
+							`<div class="pf-notice pf-notice--error">${res.data.message}</div>`
+						);
+					}
+				}).fail(() => {
+					$('#pf-in-browse-notice').html('<div class="pf-notice pf-notice--error">Import failed.</div>');
+				}).always(() => {
+					$btn.prop('disabled', false).text('⬆ Import Selected');
+				});
+			});
+		},
+
+		// -------------------------------------------------------------- //
+		// Archive / Complete an order                                      //
+		// -------------------------------------------------------------- //
+		bindArchiveOrder() {
+			$(document).on('click', '.pf-archive-order', (e) => {
+				const id = $(e.currentTarget).data('id');
+				if (!window.confirm('Mark order #' + id + ' as Completed & Collected? It will be moved to the Completed archive.')) {
+					return;
+				}
+				this.post('processflow_archive_order', { order_id: id }).done((res) => {
+					if (res.success) {
+						this.notice(res.data.message);
+						$('#pf-order-row-' + id).fadeOut(400, function () { $(this).remove(); });
+					} else {
+						this.notice(res.data.message, 'error');
+					}
+				}).fail(() => {
+					this.notice(this.strings.error, 'error');
+				});
+			});
+		},
+
+		// -------------------------------------------------------------- //
+		// Completed (archived) orders tab                                 //
+		// -------------------------------------------------------------- //
+		bindCompletedTab() {
+			// Load the table when the "completed" tab is activated.
+			$(document).on('click', '.pf-fnav__tab[data-tab="completed"]', () => {
+				this.loadCompletedOrders();
+			});
+
+			// Restore (unarchive) a completed order.
+			$(document).on('click', '.pf-unarchive-order', (e) => {
+				const id = $(e.currentTarget).data('id');
+				if (!window.confirm('Restore order #' + id + ' back to active orders?')) return;
+
+				this.post('processflow_unarchive_order', { order_id: id }).done((res) => {
+					if (res.success) {
+						this.notice(res.data.message);
+						$('#pf-completed-row-' + id).fadeOut(400, function () { $(this).remove(); });
+					} else {
+						this.notice(res.data.message, 'error');
+					}
+				}).fail(() => {
+					this.notice(this.strings.error, 'error');
+				});
+			});
+		},
+
+		loadCompletedOrders() {
+			const $tbody = $('#pf-completed-tbody');
+			$tbody.html('<tr><td colspan="7" style="text-align:center;padding:30px;">Loading…</td></tr>');
+
+			this.post('processflow_get_archived_orders', {}).done((res) => {
+				if (!res.success) {
+					$tbody.html('<tr><td colspan="7" style="text-align:center;padding:30px;color:#e74c3c;">Failed to load completed orders.</td></tr>');
+					return;
+				}
+				const items = res.data.items || [];
+				if (!items.length) {
+					$tbody.html('<tr><td colspan="7" style="text-align:center;padding:30px;color:#787c82;">No completed orders yet.</td></tr>');
+					return;
+				}
+				const rows = items.map(o => {
+					const badge = o.stage_name
+						? `<span class="pf-badge" style="background:${this.esc(o.stage_color)}">${this.esc(o.stage_name)}</span>`
+						: '<span style="color:#aaa;">—</span>';
+					return `<tr id="pf-completed-row-${o.id}">
+						<td>#${o.id}</td>
+						<td>${o.invoice_number ? this.esc(o.invoice_number) : '<span style="color:#aaa;">—</span>'}</td>
+						<td>${this.esc(o.customer_name)}</td>
+						<td>${this.esc(o.business_name)}</td>
+						<td>${badge}</td>
+						<td>${this.esc(o.archived_at || o.created_at)}</td>
+						<td>
+							<div style="display:flex;gap:5px;">
+								<button class="pf-btn pf-btn--outline pf-btn--sm pf-unarchive-order" data-id="${o.id}" title="Restore to active orders">&#8635; Restore</button>
+							</div>
+						</td>
+					</tr>`;
+				}).join('');
+				$tbody.html(rows);
+			}).fail(() => {
+				$tbody.html('<tr><td colspan="7" style="text-align:center;padding:20px;color:#e74c3c;">Failed to load completed orders.</td></tr>');
+			});
 		},
 	};
 

@@ -127,4 +127,75 @@ class ProcessFlow_InvoiceNinja {
 
 		return $orders;
 	}
+
+	/**
+	 * Fetch invoices from Invoice Ninja and return them as a rich display array
+	 * WITHOUT importing them.  Used by the "Browse Invoice Ninja" feature in the
+	 * Orders tab so the user can cherry-pick which invoices to import.
+	 *
+	 * Each returned item has:
+	 *   invoice_id, invoice_number, client_name, company_name, whatsapp,
+	 *   amount, status, due_date, job_details (pre-formatted).
+	 *
+	 * @param string $url   Base URL of the Invoice Ninja instance.
+	 * @param string $token X-Api-Token.
+	 * @return array|WP_Error
+	 */
+	public function fetch_invoices( string $url, string $token ) {
+		// Re-use the existing sync_invoices logic to get mapped data.
+		$mapped = $this->sync_invoices( $url, $token );
+		if ( is_wp_error( $mapped ) ) {
+			return $mapped;
+		}
+
+		// Re-fetch the raw data to include extra display fields (amount, status, due_date).
+		$endpoint = trailingslashit( esc_url_raw( $url ) ) . 'api/v1/invoices?per_page=100&include=client';
+		$response = wp_remote_get(
+			$endpoint,
+			array(
+				'headers' => array(
+					'X-Api-Token'      => $token,
+					'X-Requested-With' => 'XMLHttpRequest',
+					'Content-Type'     => 'application/json',
+				),
+				'timeout' => 30,
+			)
+		);
+
+		if ( is_wp_error( $response ) ) {
+			return $mapped; // Return basic data if second request fails.
+		}
+
+		$body = wp_remote_retrieve_body( $response );
+		$data = json_decode( $body, true );
+
+		if ( json_last_error() !== JSON_ERROR_NONE || ! isset( $data['data'] ) ) {
+			return $mapped;
+		}
+
+		$status_map = array( 1 => 'Draft', 2 => 'Sent', 3 => 'Partial', 4 => 'Paid', 5 => 'Overdue', 6 => 'Cancelled' );
+		$result     = array();
+
+		foreach ( $data['data'] as $idx => $invoice ) {
+			$base           = isset( $mapped[ $idx ] ) ? $mapped[ $idx ] : array();
+			$invoice_number = $invoice['number'] ?? ( $invoice['invoice_number'] ?? '' );
+			$status_id      = isset( $invoice['status_id'] ) ? (int) $invoice['status_id'] : 0;
+			$amount         = isset( $invoice['amount'] ) ? number_format( (float) $invoice['amount'], 2 ) : '0.00';
+			$due_date       = $invoice['due_date'] ?? '';
+
+			$result[] = array(
+				'invoice_id'     => $invoice['id'] ?? '',
+				'invoice_number' => $invoice_number,
+				'customer_name'  => $base['customer_name'] ?? '',
+				'business_name'  => $base['business_name'] ?? '',
+				'whatsapp'       => $base['whatsapp'] ?? '',
+				'amount'         => $amount,
+				'status'         => $status_map[ $status_id ] ?? 'Unknown',
+				'due_date'       => $due_date,
+				'job_details'    => $base['job_details'] ?? '',
+			);
+		}
+
+		return $result;
+	}
 }

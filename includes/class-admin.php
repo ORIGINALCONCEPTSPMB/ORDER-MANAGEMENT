@@ -331,6 +331,11 @@ class ProcessFlow_Admin {
 			'processflow_export_backup',
 			'processflow_import_backup',
 			'processflow_set_order_stage',
+			'processflow_archive_order',
+			'processflow_unarchive_order',
+			'processflow_get_archived_orders',
+			'processflow_fetch_in_invoices',
+			'processflow_in_import_selected',
 		);
 
 		foreach ( $actions as $action ) {
@@ -348,6 +353,11 @@ class ProcessFlow_Admin {
 		add_action( 'wp_ajax_nopriv_processflow_get_order_data', array( $this, 'dispatch_ajax' ) );
 		add_action( 'wp_ajax_nopriv_processflow_advance_stage', array( $this, 'dispatch_ajax' ) );
 		add_action( 'wp_ajax_nopriv_processflow_set_order_stage', array( $this, 'dispatch_ajax' ) );
+		add_action( 'wp_ajax_nopriv_processflow_archive_order', array( $this, 'dispatch_ajax' ) );
+		add_action( 'wp_ajax_nopriv_processflow_unarchive_order', array( $this, 'dispatch_ajax' ) );
+		add_action( 'wp_ajax_nopriv_processflow_get_archived_orders', array( $this, 'dispatch_ajax' ) );
+		add_action( 'wp_ajax_nopriv_processflow_fetch_in_invoices', array( $this, 'dispatch_ajax' ) );
+		add_action( 'wp_ajax_nopriv_processflow_in_import_selected', array( $this, 'dispatch_ajax' ) );
 		add_action( 'wp_ajax_nopriv_processflow_get_qr', array( $this, 'dispatch_ajax' ) );
 		add_action( 'wp_ajax_nopriv_processflow_get_labels_html', array( $this, 'dispatch_ajax' ) );
 		add_action( 'wp_ajax_nopriv_processflow_import_csv', array( $this, 'dispatch_ajax' ) );
@@ -389,6 +399,11 @@ class ProcessFlow_Admin {
 			'processflow_get_orders_json',
 			'processflow_advance_stage',
 			'processflow_set_order_stage',
+			'processflow_archive_order',
+			'processflow_unarchive_order',
+			'processflow_get_archived_orders',
+			'processflow_fetch_in_invoices',
+			'processflow_in_import_selected',
 			'processflow_get_qr',
 			'processflow_get_labels_html',
 			'processflow_csv_template',
@@ -449,6 +464,21 @@ class ProcessFlow_Admin {
 				break;
 			case 'processflow_set_order_stage':
 				$this->ajax_set_order_stage();
+				break;
+			case 'processflow_archive_order':
+				$this->ajax_archive_order();
+				break;
+			case 'processflow_unarchive_order':
+				$this->ajax_unarchive_order();
+				break;
+			case 'processflow_get_archived_orders':
+				$this->ajax_get_archived_orders();
+				break;
+			case 'processflow_fetch_in_invoices':
+				$this->ajax_fetch_in_invoices();
+				break;
+			case 'processflow_in_import_selected':
+				$this->ajax_in_import_selected();
 				break;
 			case 'processflow_get_qr':
 				$this->ajax_get_qr();
@@ -787,6 +817,176 @@ class ProcessFlow_Admin {
 		wp_send_json_success( array( 'qr_url' => $url ) );
 	}
 
+	/**
+	 * Archive (move to "Completed") an order.
+	 */
+	private function ajax_archive_order() {
+		$order_id = isset( $_POST['order_id'] ) ? absint( $_POST['order_id'] ) : 0;
+		if ( ! $order_id ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid order ID.', 'processflow-manager' ) ) );
+		}
+
+		$order = $this->db->get_order( $order_id );
+		if ( ! $order ) {
+			wp_send_json_error( array( 'message' => __( 'Order not found.', 'processflow-manager' ) ) );
+		}
+
+		$result = $this->db->archive_order( $order_id );
+		if ( ! $result ) {
+			wp_send_json_error( array( 'message' => __( 'Failed to archive order.', 'processflow-manager' ) ) );
+		}
+
+		wp_send_json_success( array( 'message' => __( 'Order moved to Completed.', 'processflow-manager' ) ) );
+	}
+
+	/**
+	 * Restore an archived order back to the active orders list.
+	 */
+	private function ajax_unarchive_order() {
+		$order_id = isset( $_POST['order_id'] ) ? absint( $_POST['order_id'] ) : 0;
+		if ( ! $order_id ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid order ID.', 'processflow-manager' ) ) );
+		}
+
+		$order = $this->db->get_order( $order_id );
+		if ( ! $order ) {
+			wp_send_json_error( array( 'message' => __( 'Order not found.', 'processflow-manager' ) ) );
+		}
+
+		$result = $this->db->unarchive_order( $order_id );
+		if ( ! $result ) {
+			wp_send_json_error( array( 'message' => __( 'Failed to restore order.', 'processflow-manager' ) ) );
+		}
+
+		wp_send_json_success( array( 'message' => __( 'Order restored to active orders.', 'processflow-manager' ) ) );
+	}
+
+	/**
+	 * Return paginated archived (completed) orders as JSON.
+	 */
+	private function ajax_get_archived_orders() {
+		// phpcs:disable WordPress.Security.NonceVerification.Missing
+		$search   = isset( $_POST['search'] )   ? sanitize_text_field( wp_unslash( $_POST['search'] ) )   : '';
+		$page     = isset( $_POST['page'] )     ? max( 1, absint( $_POST['page'] ) ) : 1;
+		$per_page = isset( $_POST['per_page'] ) ? absint( $_POST['per_page'] ) : 20;
+		// phpcs:enable
+
+		$result = $this->db->get_orders( array(
+			'search'           => $search,
+			'per_page'         => $per_page,
+			'page'             => $page,
+			'include_archived' => true,
+			'stage'            => 0,
+		) );
+
+		// We want ONLY archived rows — re-filter since include_archived returns all.
+		// Actually, add dedicated args support: pass a specific WHERE for is_archived=1.
+		// For now use the simpler approach: get with include_archived and post-filter.
+		// (A future refactor can add an 'archived_only' arg to get_orders.)
+		$archived_items = array_values( array_filter( $result['items'], function ( $o ) {
+			return ! empty( $o->is_archived );
+		} ) );
+
+		$stages    = $this->db->get_stages();
+		$stage_map = array();
+		foreach ( $stages as $s ) {
+			$stage_map[ (int) $s->id ] = array( 'name' => $s->name, 'color' => $s->color );
+		}
+
+		$items = array();
+		foreach ( $archived_items as $order ) {
+			$sid        = (int) $order->current_stage;
+			$stage_info = isset( $stage_map[ $sid ] ) ? $stage_map[ $sid ] : null;
+			$items[]    = array(
+				'id'             => (int) $order->id,
+				'customer_name'  => $order->customer_name,
+				'business_name'  => $order->business_name,
+				'whatsapp'       => $order->whatsapp,
+				'invoice_number' => isset( $order->invoice_number ) ? $order->invoice_number : '',
+				'job_details'    => $order->job_details,
+				'current_stage'  => $sid,
+				'stage_name'     => $stage_info ? $stage_info['name'] : '',
+				'stage_color'    => $stage_info ? $stage_info['color'] : '#aaa',
+				'archived_at'    => isset( $order->archived_at ) ? $order->archived_at : '',
+				'created_at'     => $order->created_at,
+			);
+		}
+
+		wp_send_json_success( array(
+			'items' => $items,
+			'total' => count( $items ),
+		) );
+	}
+
+	/**
+	 * Fetch Invoice Ninja invoices for preview (without importing).
+	 */
+	private function ajax_fetch_in_invoices() {
+		$url   = $this->settings->get_setting( 'invoiceninja_url', '' );
+		$token = $this->settings->get_setting( 'invoiceninja_token', '' );
+
+		if ( ! $url || ! $token ) {
+			wp_send_json_error( array( 'message' => __( 'Invoice Ninja is not configured. Please set up the connection in Settings → Invoice Ninja.', 'processflow-manager' ) ) );
+		}
+
+		$ninja    = new ProcessFlow_InvoiceNinja();
+		$invoices = $ninja->fetch_invoices( $url, $token );
+
+		if ( is_wp_error( $invoices ) ) {
+			wp_send_json_error( array( 'message' => $invoices->get_error_message() ) );
+		}
+
+		wp_send_json_success( array(
+			'invoices' => $invoices,
+			'total'    => count( $invoices ),
+		) );
+	}
+
+	/**
+	 * Import a selected subset of Invoice Ninja invoices as orders.
+	 */
+	private function ajax_in_import_selected() {
+		// phpcs:disable WordPress.Security.NonceVerification.Missing
+		$invoice_ids_raw = isset( $_POST['invoice_ids'] ) ? wp_unslash( $_POST['invoice_ids'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		// phpcs:enable
+
+		if ( empty( $invoice_ids_raw ) ) {
+			wp_send_json_error( array( 'message' => __( 'No invoices selected.', 'processflow-manager' ) ) );
+		}
+
+		// invoice_ids comes as a JSON-encoded array of objects.
+		$selected = json_decode( $invoice_ids_raw, true );
+		if ( ! is_array( $selected ) || empty( $selected ) ) {
+			wp_send_json_error( array( 'message' => __( 'No invoices selected.', 'processflow-manager' ) ) );
+		}
+
+		$created = 0;
+		$errors  = 0;
+
+		foreach ( $selected as $inv ) {
+			$result = $this->db->create_order( array(
+				'customer_name'  => sanitize_text_field( $inv['customer_name'] ?? '' ),
+				'business_name'  => sanitize_text_field( $inv['business_name'] ?? '' ),
+				'whatsapp'       => sanitize_text_field( $inv['whatsapp'] ?? '' ),
+				'invoice_number' => sanitize_text_field( $inv['invoice_number'] ?? '' ),
+				'job_details'    => sanitize_textarea_field( $inv['job_details'] ?? '' ),
+				'current_stage'  => null,
+			) );
+			is_wp_error( $result ) ? $errors++ : $created++;
+		}
+
+		wp_send_json_success( array(
+			'message' => sprintf(
+				/* translators: 1: created, 2: errors */
+				__( 'Import complete: %1$d orders created, %2$d errors.', 'processflow-manager' ),
+				$created,
+				$errors
+			),
+			'created' => $created,
+			'errors'  => $errors,
+		) );
+	}
+
 	private function ajax_send_whatsapp_notification() {
 		$order_id = isset( $_POST['order_id'] ) ? absint( $_POST['order_id'] ) : 0;
 		if ( ! $order_id ) {
@@ -984,11 +1184,12 @@ class ProcessFlow_Admin {
 		$errors  = 0;
 		foreach ( $invoices as $invoice_data ) {
 			$result = $this->db->create_order( array(
-				'customer_name' => $invoice_data['customer_name'],
-				'business_name' => $invoice_data['business_name'],
-				'whatsapp'      => $invoice_data['whatsapp'],
-				'job_details'   => $invoice_data['job_details'],
-				'current_stage' => null,
+				'customer_name'  => $invoice_data['customer_name'],
+				'business_name'  => $invoice_data['business_name'],
+				'whatsapp'       => $invoice_data['whatsapp'],
+				'invoice_number' => $invoice_data['invoice_number'] ?? '',
+				'job_details'    => $invoice_data['job_details'],
+				'current_stage'  => null,
 			) );
 			is_wp_error( $result ) ? $errors++ : $created++;
 		}

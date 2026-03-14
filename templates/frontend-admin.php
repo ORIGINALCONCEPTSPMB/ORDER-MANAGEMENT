@@ -80,8 +80,8 @@ $stages_json = wp_json_encode(
 
 /* ---- Allowed tabs ------------------------------------------------ */
 $allowed_tabs = $is_admin
-	? array( 'dashboard', 'orders', 'stages', 'qr-codes', 'users', 'import', 'invoiceninja', 'settings' )
-	: array( 'dashboard', 'orders', 'qr-codes', 'import' );
+	? array( 'dashboard', 'orders', 'stages', 'qr-codes', 'users', 'import', 'invoiceninja', 'settings', 'completed' )
+	: array( 'dashboard', 'orders', 'qr-codes', 'import', 'completed' );
 
 if ( ! in_array( $active_tab, $allowed_tabs, true ) ) {
 	$active_tab = 'dashboard';
@@ -129,6 +129,10 @@ if ( ! in_array( $active_tab, $allowed_tabs, true ) ) {
 			<button class="pf-fnav__tab <?php echo 'import' === $active_tab ? 'active' : ''; ?>" data-tab="import">
 				<svg viewBox="0 0 20 20" fill="currentColor" width="15" height="15"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
 				<?php esc_html_e( 'Import', 'processflow-manager' ); ?>
+			</button>
+			<button class="pf-fnav__tab <?php echo 'completed' === $active_tab ? 'active' : ''; ?>" data-tab="completed">
+				<svg viewBox="0 0 20 20" fill="currentColor" width="15" height="15"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+				<?php esc_html_e( 'Completed', 'processflow-manager' ); ?>
 			</button>
 			<?php if ( $is_admin ) : ?>
 			<button class="pf-fnav__tab <?php echo 'invoiceninja' === $active_tab ? 'active' : ''; ?>" data-tab="invoiceninja">
@@ -295,6 +299,14 @@ if ( ! in_array( $active_tab, $allowed_tabs, true ) ) {
 				<button id="pf-btn-add-order" class="pf-btn pf-btn--primary">
 					&#43; <?php esc_html_e( 'Add Order', 'processflow-manager' ); ?>
 				</button>
+				<button id="pf-btn-import-csv-orders" class="pf-btn pf-btn--outline" title="<?php esc_attr_e( 'Bulk import orders from a CSV file', 'processflow-manager' ); ?>">
+					&#8679; <?php esc_html_e( 'Import CSV', 'processflow-manager' ); ?>
+				</button>
+				<?php if ( $is_admin && $in_url && $in_token ) : ?>
+				<button id="pf-btn-browse-invoiceninja" class="pf-btn pf-btn--outline" title="<?php esc_attr_e( 'Browse and import invoices from Invoice Ninja', 'processflow-manager' ); ?>">
+					&#9660; <?php esc_html_e( 'Invoice Ninja', 'processflow-manager' ); ?>
+				</button>
+				<?php endif; ?>
 			</div>
 
 			<div id="pf-order-table-wrap" data-page="<?php echo esc_attr( $pf_page_num ); ?>">
@@ -368,6 +380,7 @@ if ( ! in_array( $active_tab, $allowed_tabs, true ) ) {
 													<button class="pf-btn pf-btn--outline pf-btn--sm pf-show-qr" data-id="<?php echo esc_attr( $order->id ); ?>" title="<?php esc_attr_e( 'QR Code', 'processflow-manager' ); ?>">⊙</button>
 													<button class="pf-btn pf-btn--success pf-btn--sm pf-advance-stage" data-id="<?php echo esc_attr( $order->id ); ?>" title="<?php esc_attr_e( 'Advance Stage', 'processflow-manager' ); ?>">▶</button>
 													<button class="pf-btn pf-btn--sm pf-send-whatsapp" data-id="<?php echo esc_attr( $order->id ); ?>" title="<?php esc_attr_e( 'Send WhatsApp', 'processflow-manager' ); ?>" style="background:#25d366;color:#fff;border-color:#25d366;">&#128172;</button>
+													<button class="pf-btn pf-btn--sm pf-archive-order" data-id="<?php echo esc_attr( $order->id ); ?>" title="<?php esc_attr_e( 'Mark as Completed & Archive', 'processflow-manager' ); ?>" style="background:#8e44ad;color:#fff;border-color:#8e44ad;">&#10003;</button>
 													<button class="pf-btn pf-btn--danger pf-btn--sm pf-delete-order" data-id="<?php echo esc_attr( $order->id ); ?>" title="<?php esc_attr_e( 'Delete', 'processflow-manager' ); ?>">✕</button>
 												</div>
 											</td>
@@ -700,6 +713,42 @@ if ( ! in_array( $active_tab, $allowed_tabs, true ) ) {
 			</div>
 		</section>
 
+		<!-- ===================== COMPLETED ======================== -->
+		<section id="pf-tab-completed" class="pf-ftab <?php echo 'completed' === $active_tab ? 'active' : ''; ?>">
+			<div class="pf-ftab__header">
+				<h2><?php esc_html_e( 'Completed & Collected', 'processflow-manager' ); ?></h2>
+			</div>
+			<p style="color:#555;margin-bottom:16px;">
+				<?php esc_html_e( 'Orders marked as completed and collected. These have been removed from the active orders list.', 'processflow-manager' ); ?>
+			</p>
+			<div id="pf-completed-table-wrap">
+				<div class="pf-card">
+					<div class="pf-card__body" style="padding:0;">
+						<div class="pf-table-wrap">
+							<table class="pf-table">
+								<thead>
+									<tr>
+										<th><?php esc_html_e( 'ID', 'processflow-manager' ); ?></th>
+										<th><?php esc_html_e( 'Invoice #', 'processflow-manager' ); ?></th>
+										<th><?php esc_html_e( 'Customer', 'processflow-manager' ); ?></th>
+										<th><?php esc_html_e( 'Business', 'processflow-manager' ); ?></th>
+										<th><?php esc_html_e( 'Final Stage', 'processflow-manager' ); ?></th>
+										<th><?php esc_html_e( 'Completed', 'processflow-manager' ); ?></th>
+										<th><?php esc_html_e( 'Actions', 'processflow-manager' ); ?></th>
+									</tr>
+								</thead>
+								<tbody id="pf-completed-tbody">
+									<tr><td colspan="7" style="text-align:center;padding:30px;color:#787c82;">
+										<?php esc_html_e( 'Loading…', 'processflow-manager' ); ?>
+									</td></tr>
+								</tbody>
+							</table>
+						</div>
+					</div>
+				</div>
+			</div>
+		</section>
+
 		<!-- ================== INVOICE NINJA ======================= -->
 		<?php if ( $is_admin ) : ?>
 		<section id="pf-tab-invoiceninja" class="pf-ftab <?php echo 'invoiceninja' === $active_tab ? 'active' : ''; ?>">
@@ -778,6 +827,7 @@ if ( ! in_array( $active_tab, $allowed_tabs, true ) ) {
 				<button class="pf-tab" data-target="pf-stab-security"><?php esc_html_e( 'Security', 'processflow-manager' ); ?></button>
 				<button class="pf-tab" data-target="pf-stab-fields"><?php esc_html_e( 'Custom Fields', 'processflow-manager' ); ?></button>
 				<button class="pf-tab" data-target="pf-stab-backup"><?php esc_html_e( 'Backup & Restore', 'processflow-manager' ); ?></button>
+				<button class="pf-tab" data-target="pf-stab-invoiceninja"><?php esc_html_e( 'Invoice Ninja', 'processflow-manager' ); ?></button>
 			</div>
 
 			<div id="pf-stab-general" class="pf-tab-content active">
@@ -952,6 +1002,57 @@ if ( ! in_array( $active_tab, $allowed_tabs, true ) ) {
 						</div>
 					</div>
 
+				</div>
+			</div>
+
+			<!-- Invoice Ninja Settings sub-tab -->
+			<div id="pf-stab-invoiceninja" class="pf-tab-content">
+				<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+					<div class="pf-card">
+						<div class="pf-card__header">
+							<h3 class="pf-card__title"><?php esc_html_e( 'Invoice Ninja Connection', 'processflow-manager' ); ?></h3>
+						</div>
+						<div class="pf-card__body">
+							<p style="color:#555;margin-top:0;">
+								<?php esc_html_e( 'Connect to your Invoice Ninja instance. The API token is found in Invoice Ninja under Settings → API Tokens.', 'processflow-manager' ); ?>
+							</p>
+							<div id="pf-in-settings-notice2"></div>
+							<form class="pf-settings-form" data-notice="#pf-in-settings-notice2">
+								<div class="pf-form-group">
+									<label><?php esc_html_e( 'Invoice Ninja URL', 'processflow-manager' ); ?></label>
+									<input type="url" name="invoiceninja_url" value="<?php echo esc_attr( $in_url ); ?>" placeholder="https://your-invoiceninja.com">
+								</div>
+								<div class="pf-form-group">
+									<label><?php esc_html_e( 'API Token', 'processflow-manager' ); ?></label>
+									<input type="text" name="invoiceninja_token" value="<?php echo esc_attr( $in_token ); ?>" placeholder="<?php esc_attr_e( 'Paste your API token here', 'processflow-manager' ); ?>" autocomplete="off">
+								</div>
+								<button type="submit" class="pf-btn pf-btn--primary">
+									<?php esc_html_e( 'Save Connection', 'processflow-manager' ); ?>
+								</button>
+							</form>
+						</div>
+					</div>
+					<div class="pf-card">
+						<div class="pf-card__header">
+							<h3 class="pf-card__title"><?php esc_html_e( 'Status', 'processflow-manager' ); ?></h3>
+						</div>
+						<div class="pf-card__body">
+							<?php if ( $in_url && $in_token ) : ?>
+								<div class="pf-in-status pf-in-status--connected">
+									<svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+									<?php esc_html_e( 'Connected', 'processflow-manager' ); ?> &mdash; <small><?php echo esc_html( $in_url ); ?></small>
+								</div>
+								<p style="color:#555;margin:12px 0;font-size:13px;">
+									<?php esc_html_e( 'Use the "Invoice Ninja" button in the Orders toolbar to browse and import invoices into ProcessFlow.', 'processflow-manager' ); ?>
+								</p>
+							<?php else : ?>
+								<div class="pf-in-status pf-in-status--disconnected">
+									<svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+									<?php esc_html_e( 'Not configured. Fill in the connection settings.', 'processflow-manager' ); ?>
+								</div>
+							<?php endif; ?>
+						</div>
+					</div>
 				</div>
 			</div>
 
