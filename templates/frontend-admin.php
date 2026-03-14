@@ -305,6 +305,7 @@ if ( ! in_array( $active_tab, $allowed_tabs, true ) ) {
 								<thead>
 									<tr>
 										<th><?php esc_html_e( 'ID', 'processflow-manager' ); ?></th>
+										<th><?php esc_html_e( 'Invoice #', 'processflow-manager' ); ?></th>
 										<th><?php esc_html_e( 'Customer', 'processflow-manager' ); ?></th>
 										<th><?php esc_html_e( 'Business', 'processflow-manager' ); ?></th>
 										<th><?php esc_html_e( 'WhatsApp', 'processflow-manager' ); ?></th>
@@ -328,6 +329,13 @@ if ( ! in_array( $active_tab, $allowed_tabs, true ) ) {
 										?>
 										<tr id="pf-order-row-<?php echo esc_attr( $order->id ); ?>">
 											<td>#<?php echo esc_html( $order->id ); ?></td>
+											<td>
+												<?php if ( ! empty( $order->invoice_number ) ) : ?>
+													<?php echo esc_html( $order->invoice_number ); ?>
+												<?php else : ?>
+													<span style="color:#aaa;">—</span>
+												<?php endif; ?>
+											</td>
 											<td><?php echo esc_html( $order->customer_name ); ?></td>
 											<td><?php echo esc_html( $order->business_name ); ?></td>
 											<td>
@@ -516,8 +524,24 @@ if ( ! in_array( $active_tab, $allowed_tabs, true ) ) {
 							<strong>#<?php echo esc_html( $qr_order->id ); ?></strong><br>
 							<?php echo esc_html( $qr_order->customer_name ); ?>
 							<?php if ( $qr_stage_name ) : ?>
-								<br><span style="font-size:11px;color:#787c82;"><?php echo esc_html( $qr_stage_name ); ?></span>
+								<br><span class="pf-qr-stage-label" style="font-size:11px;color:#787c82;"><?php echo esc_html( $qr_stage_name ); ?></span>
+							<?php else : ?>
+								<br><span class="pf-qr-stage-label" style="font-size:11px;color:#aaa;"><?php esc_html_e( '— No stage —', 'processflow-manager' ); ?></span>
 							<?php endif; ?>
+						</div>
+						<!-- Stage selector -->
+						<div class="pf-qr-stage-wrap" style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:center;">
+							<select class="pf-qr-stage-select" style="font-size:12px;max-width:140px;padding:2px 4px;">
+								<option value="0"><?php esc_html_e( '— No stage —', 'processflow-manager' ); ?></option>
+								<?php foreach ( $all_stages as $qs ) : ?>
+									<option value="<?php echo esc_attr( $qs->id ); ?>" <?php selected( (int) $qr_order->current_stage, (int) $qs->id ); ?>>
+										<?php echo esc_html( $qs->name ); ?>
+									</option>
+								<?php endforeach; ?>
+							</select>
+							<button class="pf-btn pf-btn--success pf-btn--sm pf-qr-set-stage" data-id="<?php echo esc_attr( $qr_order->id ); ?>">
+								<?php esc_html_e( 'Set', 'processflow-manager' ); ?>
+							</button>
 						</div>
 						<div style="margin-top:8px;display:flex;justify-content:center;gap:6px;">
 							<?php if ( $qr_url ) : ?>
@@ -626,7 +650,7 @@ if ( ! in_array( $active_tab, $allowed_tabs, true ) ) {
 					</div>
 					<div class="pf-card__body">
 						<p style="color:#555;margin-top:0;">
-							<?php esc_html_e( 'Upload a CSV file to bulk import orders. Required columns: customer_name, business_name, whatsapp, job_details. Optional: stage_name.', 'processflow-manager' ); ?>
+							<?php esc_html_e( 'Upload a CSV file to bulk import orders. Required columns: customer_name, business_name, whatsapp, job_details. Optional: invoice_number, stage_name.', 'processflow-manager' ); ?>
 						</p>
 
 						<div id="pf-import-notice"></div>
@@ -665,6 +689,7 @@ if ( ! in_array( $active_tab, $allowed_tabs, true ) ) {
 							<div class="pf-template-col-item"><code>business_name</code></div>
 							<div class="pf-template-col-item"><code>whatsapp</code></div>
 							<div class="pf-template-col-item"><code>job_details</code></div>
+							<div class="pf-template-col-item pf-template-col-item--optional"><code>invoice_number</code> <span><?php esc_html_e( 'optional', 'processflow-manager' ); ?></span></div>
 							<div class="pf-template-col-item pf-template-col-item--optional"><code>stage_name</code> <span><?php esc_html_e( 'optional', 'processflow-manager' ); ?></span></div>
 						</div>
 						<button id="pf-btn-csv-template" class="pf-btn pf-btn--outline" style="margin-top:20px;">

@@ -33,17 +33,19 @@ class ProcessFlow_Database {
 		$inserted = $wpdb->insert( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 			$wpdb->prefix . 'processflow_orders',
 			array(
-				'customer_name' => $data['customer_name'],
-				'business_name' => $data['business_name'],
-				'whatsapp'      => $data['whatsapp'],
-				'job_details'   => $data['job_details'],
-				'current_stage' => isset( $data['current_stage'] ) ? absint( $data['current_stage'] ) : null,
-				'custom_fields' => isset( $data['custom_fields'] ) ? wp_json_encode( $data['custom_fields'] ) : null,
-				'created_at'    => current_time( 'mysql' ),
-				'updated_at'    => current_time( 'mysql' ),
-				'qr_code_hash'  => '',
+				'customer_name'  => $data['customer_name'],
+				'business_name'  => $data['business_name'],
+				'whatsapp'       => $data['whatsapp'],
+				'invoice_number' => isset( $data['invoice_number'] ) ? $data['invoice_number'] : '',
+				'job_details'    => $data['job_details'],
+				'product_lines'  => isset( $data['product_lines'] ) ? $data['product_lines'] : null,
+				'current_stage'  => isset( $data['current_stage'] ) ? absint( $data['current_stage'] ) : null,
+				'custom_fields'  => isset( $data['custom_fields'] ) ? wp_json_encode( $data['custom_fields'] ) : null,
+				'created_at'     => current_time( 'mysql' ),
+				'updated_at'     => current_time( 'mysql' ),
+				'qr_code_hash'   => '',
 			),
-			array( '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s' )
+			array( '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s' )
 		);
 
 		if ( ! $inserted ) {

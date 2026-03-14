@@ -30,16 +30,18 @@ class ProcessFlow_Activator {
 		// Orders table                                                         //
 		// ------------------------------------------------------------------ //
 		$sql_orders = "CREATE TABLE {$wpdb->prefix}processflow_orders (
-			id            BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-			customer_name VARCHAR(255)        NOT NULL DEFAULT '',
-			business_name VARCHAR(255)        NOT NULL DEFAULT '',
-			whatsapp      VARCHAR(50)         NOT NULL DEFAULT '',
-			job_details   TEXT                NOT NULL,
-			current_stage BIGINT(20) UNSIGNED          DEFAULT NULL,
-			created_at    DATETIME            NOT NULL,
-			updated_at    DATETIME            NOT NULL,
-			qr_code_hash  VARCHAR(64)         NOT NULL DEFAULT '',
-			custom_fields LONGTEXT,
+			id             BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			customer_name  VARCHAR(255)        NOT NULL DEFAULT '',
+			business_name  VARCHAR(255)        NOT NULL DEFAULT '',
+			whatsapp       VARCHAR(50)         NOT NULL DEFAULT '',
+			invoice_number VARCHAR(100)        NOT NULL DEFAULT '',
+			job_details    TEXT                NOT NULL,
+			product_lines  LONGTEXT,
+			current_stage  BIGINT(20) UNSIGNED          DEFAULT NULL,
+			created_at     DATETIME            NOT NULL,
+			updated_at     DATETIME            NOT NULL,
+			qr_code_hash   VARCHAR(64)         NOT NULL DEFAULT '',
+			custom_fields  LONGTEXT,
 			PRIMARY KEY  (id),
 			KEY current_stage (current_stage),
 			KEY qr_code_hash (qr_code_hash)
@@ -224,5 +226,47 @@ class ProcessFlow_Activator {
 				array( '%s', '%d', '%s', '%s', '%d' )
 			);
 		}
+	}
+
+	/**
+	 * Run any database migrations needed when the plugin is updated.
+	 *
+	 * Called on `plugins_loaded` so it runs once per request on the first
+	 * page load after a plugin update.  dbDelta() is idempotent — it only
+	 * adds missing columns and does nothing if the table is already current.
+	 */
+	public static function maybe_upgrade() {
+		$installed_ver = get_option( 'processflow_db_version', '0' );
+
+		if ( version_compare( $installed_ver, '1.2.0', '>=' ) ) {
+			return; // Already up to date.
+		}
+
+		global $wpdb;
+		$charset_collate = $wpdb->get_charset_collate();
+
+		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
+		$sql_orders = "CREATE TABLE {$wpdb->prefix}processflow_orders (
+			id             BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			customer_name  VARCHAR(255)        NOT NULL DEFAULT '',
+			business_name  VARCHAR(255)        NOT NULL DEFAULT '',
+			whatsapp       VARCHAR(50)         NOT NULL DEFAULT '',
+			invoice_number VARCHAR(100)        NOT NULL DEFAULT '',
+			job_details    TEXT                NOT NULL,
+			product_lines  LONGTEXT,
+			current_stage  BIGINT(20) UNSIGNED          DEFAULT NULL,
+			created_at     DATETIME            NOT NULL,
+			updated_at     DATETIME            NOT NULL,
+			qr_code_hash   VARCHAR(64)         NOT NULL DEFAULT '',
+			custom_fields  LONGTEXT,
+			PRIMARY KEY  (id),
+			KEY current_stage (current_stage),
+			KEY qr_code_hash (qr_code_hash)
+		) $charset_collate;";
+
+		dbDelta( $sql_orders );
+
+		update_option( 'processflow_db_version', '1.2.0' );
 	}
 }

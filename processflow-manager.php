@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Plugin constants.
-define( 'PROCESSFLOW_VERSION', '1.1.0' );
+define( 'PROCESSFLOW_VERSION', '1.2.0' );
 define( 'PROCESSFLOW_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'PROCESSFLOW_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
@@ -155,3 +155,4 @@ function run_processflow() {
 }
 
 add_action( 'plugins_loaded', 'run_processflow' );
+add_action( 'plugins_loaded', array( 'ProcessFlow_Activator', 'maybe_upgrade' ) );

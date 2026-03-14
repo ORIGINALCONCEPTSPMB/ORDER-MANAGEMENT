@@ -107,17 +107,43 @@
 		// Orders                                                           //
 		// -------------------------------------------------------------- //
 		bindOrderForm() {
+			// Add / Remove product lines.
+			$(document).on('click', '#pf-add-product-line', () => {
+				$('#pf-product-lines').append(PF.buildProductLineRow());
+			});
+			$(document).on('click', '.pf-remove-product-line', (e) => {
+				$(e.currentTarget).closest('.pf-product-line').remove();
+				// Always keep at least one row.
+				if (!$('#pf-product-lines .pf-product-line').length) {
+					$('#pf-product-lines').append(PF.buildProductLineRow());
+				}
+			});
+
 			$(document).on('submit', '#pf-order-form', (e) => {
 				e.preventDefault();
 				const $form   = $(e.currentTarget);
 				const orderId = $form.data('order-id');
 				const action  = orderId ? 'processflow_update_order' : 'processflow_create_order';
-				const data    = {
+
+				// Collect product lines.
+				const lines = [];
+				$('#pf-product-lines .pf-product-line').each(function () {
+					const desc  = $(this).find('.pl-desc').val().trim();
+					const qty   = parseFloat($(this).find('.pl-qty').val())   || 0;
+					const price = parseFloat($(this).find('.pl-price').val()) || 0;
+					if (desc || qty || price) {
+						lines.push({ desc, qty, unit_price: price });
+					}
+				});
+
+				const data = {
 					customer_name:  $form.find('[name="customer_name"]').val(),
 					business_name:  $form.find('[name="business_name"]').val(),
 					whatsapp:       $form.find('[name="whatsapp"]').val(),
+					invoice_number: $form.find('[name="invoice_number"]').val(),
 					job_details:    $form.find('[name="job_details"]').val(),
 					current_stage:  $form.find('[name="current_stage"]').val(),
+					product_lines:  lines.length ? JSON.stringify(lines) : '',
 				};
 				if (orderId) data.order_id = orderId;
 
@@ -179,7 +205,7 @@
 
 		openOrderModal(orderId = null) {
 			const stages = window.pfStages || [];
-			let stageOptions = stages.map(s =>
+			let stageOptions = '<option value="0">— No stage —</option>' + stages.map(s =>
 				`<option value="${s.id}">${s.name}</option>`
 			).join('');
 
@@ -193,6 +219,10 @@
 					<div id="pf-modal-notice"></div>
 					<form id="pf-order-form" ${orderId ? `data-order-id="${orderId}"` : ''}>
 						<div class="pf-form-group">
+							<label>Invoice / Order Number</label>
+							<input type="text" name="invoice_number" placeholder="INV-001" style="max-width:220px;">
+						</div>
+						<div class="pf-form-group">
 							<label>Customer Name *</label>
 							<input type="text" name="customer_name" required>
 						</div>
@@ -205,12 +235,26 @@
 							<input type="text" name="whatsapp" placeholder="+27821234567" required>
 						</div>
 						<div class="pf-form-group">
-							<label>Job Details</label>
-							<textarea name="job_details" rows="3"></textarea>
-						</div>
-						<div class="pf-form-group">
 							<label>Stage</label>
 							<select name="current_stage">${stageOptions}</select>
+						</div>
+						<div class="pf-form-group">
+							<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+								<label style="margin:0;">Product Lines</label>
+								<button type="button" id="pf-add-product-line" class="pf-btn pf-btn--outline pf-btn--sm">+ Add Line</button>
+							</div>
+							<div id="pf-product-lines">
+								<div class="pf-product-line" style="display:grid;grid-template-columns:1fr 70px 90px auto;gap:6px;margin-bottom:6px;align-items:center;">
+									<input type="text"   placeholder="Description" class="pl-desc" style="width:100%;">
+									<input type="number" placeholder="Qty"         class="pl-qty"  min="0" step="1"    value="1" style="width:100%;">
+									<input type="number" placeholder="Unit Price"  class="pl-price" min="0" step="0.01" value="0" style="width:100%;">
+									<button type="button" class="pf-btn pf-btn--danger pf-btn--sm pf-remove-product-line">✕</button>
+								</div>
+							</div>
+						</div>
+						<div class="pf-form-group">
+							<label>Job Details / Notes</label>
+							<textarea name="job_details" rows="2"></textarea>
 						</div>
 					</form>
 				</div>
@@ -227,14 +271,41 @@
 				this.post('processflow_get_order_data', { order_id: orderId }).done((res) => {
 					if (res.success) {
 						const o = res.data;
+						$('#pf-order-form [name="invoice_number"]').val(o.invoice_number || '');
 						$('#pf-order-form [name="customer_name"]').val(o.customer_name);
 						$('#pf-order-form [name="business_name"]').val(o.business_name);
 						$('#pf-order-form [name="whatsapp"]').val(o.whatsapp);
 						$('#pf-order-form [name="job_details"]').val(o.job_details);
 						$('#pf-order-form [name="current_stage"]').val(o.current_stage);
+
+						// Populate product lines.
+						if (o.product_lines) {
+							try {
+								const lines = JSON.parse(o.product_lines);
+								if (Array.isArray(lines) && lines.length) {
+									$('#pf-product-lines').empty();
+									lines.forEach(l => {
+										$('#pf-product-lines').append(this.buildProductLineRow(l));
+									});
+								}
+							} catch (e) { /* ignore parse errors */ }
+						}
 					}
 				});
 			}
+		},
+
+		/** Build a single product-line row element. */
+		buildProductLineRow(line = {}) {
+			const desc  = String(line.desc  || '').replace(/"/g, '&quot;');
+			const qty   = parseFloat(line.qty)        >= 0 ? parseFloat(line.qty)        : 1;
+			const price = parseFloat(line.unit_price) >= 0 ? parseFloat(line.unit_price) : 0;
+			return `<div class="pf-product-line" style="display:grid;grid-template-columns:1fr 70px 90px auto;gap:6px;margin-bottom:6px;align-items:center;">
+				<input type="text"   placeholder="Description" class="pl-desc"  value="${desc}"  style="width:100%;">
+				<input type="number" placeholder="Qty"         class="pl-qty"   value="${qty}"   min="0" step="1"    style="width:100%;">
+				<input type="number" placeholder="Unit Price"  class="pl-price" value="${price}" min="0" step="0.01" style="width:100%;">
+				<button type="button" class="pf-btn pf-btn--danger pf-btn--sm pf-remove-product-line">✕</button>
+			</div>`;
 		},
 
 		reloadOrderTable() {
@@ -246,7 +317,7 @@
 			const $tbody   = $wrap.find('tbody');
 			const $counter = $wrap.find('.pf-orders-counter');
 
-			$tbody.html(`<tr><td colspan="8" style="text-align:center;padding:30px;">${this.strings.loading}</td></tr>`);
+			$tbody.html(`<tr><td colspan="9" style="text-align:center;padding:30px;">${this.strings.loading}</td></tr>`);
 
 			this.post('processflow_get_orders_json', { search, stage, page, per_page: 20 }).done((res) => {
 				if (!res.success) { return; }
@@ -254,7 +325,7 @@
 				if ($counter.length) $counter.text(res.data.total + ' orders total');
 
 				if (!orders.length) {
-					$tbody.html('<tr><td colspan="8" style="text-align:center;padding:30px;color:#787c82;">No orders found.</td></tr>');
+					$tbody.html('<tr><td colspan="9" style="text-align:center;padding:30px;color:#787c82;">No orders found.</td></tr>');
 					return;
 				}
 
@@ -271,6 +342,7 @@
 						: '';
 					return `<tr id="pf-order-row-${o.id}">
 						<td>#${o.id}</td>
+						<td>${o.invoice_number ? this.esc(o.invoice_number) : '<span style="color:#aaa;">—</span>'}</td>
 						<td>${this.esc(o.customer_name)}</td>
 						<td>${this.esc(o.business_name)}</td>
 						<td>${waLink}</td>
@@ -290,7 +362,7 @@
 				});
 				$tbody.html(rows.join(''));
 			}).fail(() => {
-				$tbody.html('<tr><td colspan="8" style="text-align:center;padding:20px;color:#e74c3c;">Failed to load orders.</td></tr>');
+				$tbody.html('<tr><td colspan="9" style="text-align:center;padding:20px;color:#e74c3c;">Failed to load orders.</td></tr>');
 			});
 		},
 
@@ -397,6 +469,27 @@
 					} else {
 						this.notice(res.data.message, 'error');
 					}
+				});
+			});
+
+			// Stage selector on QR cards – set stage directly without advancing.
+			$(document).on('click', '.pf-qr-set-stage', (e) => {
+				const $btn    = $(e.currentTarget).prop('disabled', true).text('…');
+				const id      = $btn.data('id');
+				const stageId = $btn.closest('.pf-qr-stage-wrap').find('.pf-qr-stage-select').val();
+				this.post('processflow_set_order_stage', { order_id: id, stage_id: stageId }).done((res) => {
+					if (res.success) {
+						this.notice(res.data.message);
+						// Update the displayed stage label on the card.
+						const $card = $btn.closest('.pf-qr-card');
+						$card.find('.pf-qr-stage-label').text(res.data.stage_name || '— No stage —');
+					} else {
+						this.notice(res.data.message, 'error');
+					}
+				}).fail(() => {
+					this.notice(this.strings.error, 'error');
+				}).always(() => {
+					$btn.prop('disabled', false).text('Set');
 				});
 			});
 

@@ -330,6 +330,7 @@ class ProcessFlow_Admin {
 			'processflow_send_whatsapp_notification',
 			'processflow_export_backup',
 			'processflow_import_backup',
+			'processflow_set_order_stage',
 		);
 
 		foreach ( $actions as $action ) {
@@ -346,6 +347,7 @@ class ProcessFlow_Admin {
 		add_action( 'wp_ajax_nopriv_processflow_delete_order', array( $this, 'dispatch_ajax' ) );
 		add_action( 'wp_ajax_nopriv_processflow_get_order_data', array( $this, 'dispatch_ajax' ) );
 		add_action( 'wp_ajax_nopriv_processflow_advance_stage', array( $this, 'dispatch_ajax' ) );
+		add_action( 'wp_ajax_nopriv_processflow_set_order_stage', array( $this, 'dispatch_ajax' ) );
 		add_action( 'wp_ajax_nopriv_processflow_get_qr', array( $this, 'dispatch_ajax' ) );
 		add_action( 'wp_ajax_nopriv_processflow_get_labels_html', array( $this, 'dispatch_ajax' ) );
 		add_action( 'wp_ajax_nopriv_processflow_import_csv', array( $this, 'dispatch_ajax' ) );
@@ -386,6 +388,7 @@ class ProcessFlow_Admin {
 			'processflow_get_order_data',
 			'processflow_get_orders_json',
 			'processflow_advance_stage',
+			'processflow_set_order_stage',
 			'processflow_get_qr',
 			'processflow_get_labels_html',
 			'processflow_csv_template',
@@ -443,6 +446,9 @@ class ProcessFlow_Admin {
 				break;
 			case 'processflow_advance_stage':
 				$this->ajax_advance_stage();
+				break;
+			case 'processflow_set_order_stage':
+				$this->ajax_set_order_stage();
 				break;
 			case 'processflow_get_qr':
 				$this->ajax_get_qr();
@@ -502,12 +508,33 @@ class ProcessFlow_Admin {
 	// ------------------------------------------------------------------ //
 
 	private function ajax_create_order() {
+		// Decode product_lines JSON sent from the JS form.
+		$product_lines_raw = isset( $_POST['product_lines'] ) ? wp_unslash( $_POST['product_lines'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		$product_lines     = '';
+		if ( ! empty( $product_lines_raw ) ) {
+			$decoded = json_decode( $product_lines_raw, true );
+			if ( is_array( $decoded ) ) {
+				// Sanitise each line.
+				$clean = array();
+				foreach ( $decoded as $line ) {
+					$clean[] = array(
+						'desc'       => sanitize_text_field( $line['desc'] ?? '' ),
+						'qty'        => max( 0, (float) ( $line['qty'] ?? 0 ) ),
+						'unit_price' => max( 0, (float) ( $line['unit_price'] ?? 0 ) ),
+					);
+				}
+				$product_lines = wp_json_encode( $clean );
+			}
+		}
+
 		$data = array(
-			'customer_name' => isset( $_POST['customer_name'] ) ? sanitize_text_field( wp_unslash( $_POST['customer_name'] ) ) : '',
-			'business_name' => isset( $_POST['business_name'] ) ? sanitize_text_field( wp_unslash( $_POST['business_name'] ) ) : '',
-			'whatsapp'      => isset( $_POST['whatsapp'] ) ? sanitize_text_field( wp_unslash( $_POST['whatsapp'] ) ) : '',
-			'job_details'   => isset( $_POST['job_details'] ) ? sanitize_textarea_field( wp_unslash( $_POST['job_details'] ) ) : '',
-			'current_stage' => isset( $_POST['current_stage'] ) ? absint( $_POST['current_stage'] ) : 0,
+			'customer_name'  => isset( $_POST['customer_name'] ) ? sanitize_text_field( wp_unslash( $_POST['customer_name'] ) ) : '',
+			'business_name'  => isset( $_POST['business_name'] ) ? sanitize_text_field( wp_unslash( $_POST['business_name'] ) ) : '',
+			'whatsapp'       => isset( $_POST['whatsapp'] ) ? sanitize_text_field( wp_unslash( $_POST['whatsapp'] ) ) : '',
+			'invoice_number' => isset( $_POST['invoice_number'] ) ? sanitize_text_field( wp_unslash( $_POST['invoice_number'] ) ) : '',
+			'job_details'    => isset( $_POST['job_details'] ) ? sanitize_textarea_field( wp_unslash( $_POST['job_details'] ) ) : '',
+			'product_lines'  => $product_lines ?: null,
+			'current_stage'  => isset( $_POST['current_stage'] ) ? absint( $_POST['current_stage'] ) : 0,
 		);
 
 		$result = $this->order_manager->create_order( $data );
@@ -523,13 +550,34 @@ class ProcessFlow_Admin {
 	}
 
 	private function ajax_update_order() {
-		$id   = isset( $_POST['order_id'] ) ? absint( $_POST['order_id'] ) : 0;
+		$id = isset( $_POST['order_id'] ) ? absint( $_POST['order_id'] ) : 0;
+
+		// Decode product_lines JSON.
+		$product_lines_raw = isset( $_POST['product_lines'] ) ? wp_unslash( $_POST['product_lines'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		$product_lines     = null;
+		if ( ! empty( $product_lines_raw ) ) {
+			$decoded = json_decode( $product_lines_raw, true );
+			if ( is_array( $decoded ) ) {
+				$clean = array();
+				foreach ( $decoded as $line ) {
+					$clean[] = array(
+						'desc'       => sanitize_text_field( $line['desc'] ?? '' ),
+						'qty'        => max( 0, (float) ( $line['qty'] ?? 0 ) ),
+						'unit_price' => max( 0, (float) ( $line['unit_price'] ?? 0 ) ),
+					);
+				}
+				$product_lines = wp_json_encode( $clean );
+			}
+		}
+
 		$data = array(
-			'customer_name' => isset( $_POST['customer_name'] ) ? sanitize_text_field( wp_unslash( $_POST['customer_name'] ) ) : '',
-			'business_name' => isset( $_POST['business_name'] ) ? sanitize_text_field( wp_unslash( $_POST['business_name'] ) ) : '',
-			'whatsapp'      => isset( $_POST['whatsapp'] ) ? sanitize_text_field( wp_unslash( $_POST['whatsapp'] ) ) : '',
-			'job_details'   => isset( $_POST['job_details'] ) ? sanitize_textarea_field( wp_unslash( $_POST['job_details'] ) ) : '',
-			'current_stage' => isset( $_POST['current_stage'] ) ? absint( $_POST['current_stage'] ) : 0,
+			'customer_name'  => isset( $_POST['customer_name'] ) ? sanitize_text_field( wp_unslash( $_POST['customer_name'] ) ) : '',
+			'business_name'  => isset( $_POST['business_name'] ) ? sanitize_text_field( wp_unslash( $_POST['business_name'] ) ) : '',
+			'whatsapp'       => isset( $_POST['whatsapp'] ) ? sanitize_text_field( wp_unslash( $_POST['whatsapp'] ) ) : '',
+			'invoice_number' => isset( $_POST['invoice_number'] ) ? sanitize_text_field( wp_unslash( $_POST['invoice_number'] ) ) : '',
+			'job_details'    => isset( $_POST['job_details'] ) ? sanitize_textarea_field( wp_unslash( $_POST['job_details'] ) ) : '',
+			'product_lines'  => $product_lines,
+			'current_stage'  => isset( $_POST['current_stage'] ) ? absint( $_POST['current_stage'] ) : 0,
 		);
 
 		$result = $this->order_manager->update_order( $id, $data );
@@ -561,12 +609,14 @@ class ProcessFlow_Admin {
 		}
 
 		wp_send_json_success( array(
-			'id'            => (int) $order->id,
-			'customer_name' => $order->customer_name,
-			'business_name' => $order->business_name,
-			'whatsapp'      => $order->whatsapp,
-			'job_details'   => $order->job_details,
-			'current_stage' => $order->current_stage,
+			'id'             => (int) $order->id,
+			'customer_name'  => $order->customer_name,
+			'business_name'  => $order->business_name,
+			'whatsapp'       => $order->whatsapp,
+			'invoice_number' => isset( $order->invoice_number ) ? $order->invoice_number : '',
+			'job_details'    => $order->job_details,
+			'product_lines'  => isset( $order->product_lines ) ? $order->product_lines : null,
+			'current_stage'  => $order->current_stage,
 		) );
 	}
 
@@ -611,6 +661,7 @@ class ProcessFlow_Admin {
 				'customer_name'        => $order->customer_name,
 				'business_name'        => $order->business_name,
 				'whatsapp'             => $order->whatsapp,
+				'invoice_number'       => isset( $order->invoice_number ) ? $order->invoice_number : '',
 				'job_details'          => $order->job_details,
 				'current_stage'        => $sid,
 				'stage_name'           => $stage_info ? $stage_info['name'] : '',
@@ -689,6 +740,39 @@ class ProcessFlow_Admin {
 			'new_stage_id'   => $result,
 			'new_stage_name' => $stage ? $stage->name : '',
 			'message'        => __( 'Stage advanced.', 'processflow-manager' ),
+		) );
+	}
+
+	/**
+	 * Directly set the stage for an order (used by the QR-section stage selector).
+	 *
+	 * Only updates current_stage — does NOT overwrite any other order field.
+	 */
+	private function ajax_set_order_stage() {
+		$order_id = isset( $_POST['order_id'] ) ? absint( $_POST['order_id'] ) : 0;
+		$stage_id = isset( $_POST['stage_id'] ) ? absint( $_POST['stage_id'] ) : 0;
+
+		if ( ! $order_id ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid order ID.', 'processflow-manager' ) ) );
+		}
+
+		$order = $this->db->get_order( $order_id );
+		if ( ! $order ) {
+			wp_send_json_error( array( 'message' => __( 'Order not found.', 'processflow-manager' ) ) );
+		}
+
+		$update = array( 'current_stage' => $stage_id ?: null );
+		$result = $this->db->update_order( $order_id, $update );
+
+		if ( ! $result ) {
+			wp_send_json_error( array( 'message' => __( 'Failed to update stage.', 'processflow-manager' ) ) );
+		}
+
+		$stage = $stage_id ? $this->db->get_stage( $stage_id ) : null;
+		wp_send_json_success( array(
+			'stage_id'   => $stage_id,
+			'stage_name' => $stage ? $stage->name : '',
+			'message'    => __( 'Stage updated.', 'processflow-manager' ),
 		) );
 	}
 
@@ -942,8 +1026,8 @@ class ProcessFlow_Admin {
 		header( 'Expires: 0' );
 
 		$out = fopen( 'php://output', 'w' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
-		fputcsv( $out, array( 'customer_name', 'business_name', 'whatsapp', 'job_details', 'stage_name' ) );
-		fputcsv( $out, array( 'John Smith', 'Smith & Co', '+27821234567', 'Business cards x500', 'In Design' ) );
+		fputcsv( $out, array( 'customer_name', 'business_name', 'whatsapp', 'invoice_number', 'job_details', 'stage_name' ) );
+		fputcsv( $out, array( 'John Smith', 'Smith & Co', '+27821234567', 'INV-001', 'Business cards x500', 'In Design' ) );
 		fclose( $out ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
 		exit;
 	}
@@ -1218,11 +1302,12 @@ class ProcessFlow_Admin {
 			$stage_id    = isset( $stage_map[ $stage_name ] ) ? $stage_map[ $stage_name ] : null;
 
 			$result = $this->db->create_order( array(
-				'customer_name' => $customer_name,
-				'business_name' => sanitize_text_field( trim( $row_data['business_name'] ?? '' ) ),
-				'whatsapp'      => sanitize_text_field( trim( $row_data['whatsapp'] ?? '' ) ),
-				'job_details'   => sanitize_textarea_field( trim( $row_data['job_details'] ?? '' ) ),
-				'current_stage' => $stage_id,
+				'customer_name'  => $customer_name,
+				'business_name'  => sanitize_text_field( trim( $row_data['business_name'] ?? '' ) ),
+				'whatsapp'       => sanitize_text_field( trim( $row_data['whatsapp'] ?? '' ) ),
+				'invoice_number' => sanitize_text_field( trim( $row_data['invoice_number'] ?? '' ) ),
+				'job_details'    => sanitize_textarea_field( trim( $row_data['job_details'] ?? '' ) ),
+				'current_stage'  => $stage_id,
 			) );
 
 			is_wp_error( $result ) ? $skipped++ : $created++;
