@@ -747,6 +747,14 @@ class ProcessFlow_Admin {
 	// CSV Import / Template AJAX handlers                                  //
 	// ------------------------------------------------------------------ //
 
+	/**
+	 * Stream a pre-filled CSV import template to the browser.
+	 *
+	 * This handler uses native PHP file operations instead of the WordPress
+	 * Filesystem API because the output must be streamed directly to the HTTP
+	 * response via `php://output` — the WP filesystem abstraction does not
+	 * support in-memory stream targets and would produce an unwanted temp file.
+	 */
 	private function ajax_csv_template() {
 		// Output CSV file directly.
 		header( 'Content-Type: text/csv; charset=utf-8' );

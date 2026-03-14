@@ -515,6 +515,16 @@ class ProcessFlow_Database {
 	 * @param array $data { username, email, password (plain-text), role }
 	 * @return int|WP_Error New user ID or error.
 	 */
+	/**
+	 * Normalise a role value to either 'admin' or 'operator'.
+	 *
+	 * @param mixed $role Raw role value.
+	 * @return string
+	 */
+	private function normalise_pf_role( $role ): string {
+		return in_array( $role, array( 'admin', 'operator' ), true ) ? (string) $role : 'operator';
+	}
+
 	public function create_pf_user( array $data ) {
 		global $wpdb;
 
@@ -537,7 +547,7 @@ class ProcessFlow_Database {
 				'username'      => sanitize_user( $data['username'] ),
 				'email'         => sanitize_email( $data['email'] ?? '' ),
 				'password_hash' => wp_hash_password( $data['password'] ),
-				'role'          => in_array( $data['role'] ?? 'operator', array( 'admin', 'operator' ), true ) ? $data['role'] : 'operator',
+				'role'          => $this->normalise_pf_role( $data['role'] ?? 'operator' ),
 				'is_active'     => isset( $data['is_active'] ) ? (int) $data['is_active'] : 1,
 				'created_at'    => current_time( 'mysql' ),
 			),
@@ -625,7 +635,7 @@ class ProcessFlow_Database {
 			$clean['password_hash'] = wp_hash_password( $data['password'] );
 		}
 		if ( isset( $data['role'] ) ) {
-			$clean['role'] = in_array( $data['role'], array( 'admin', 'operator' ), true ) ? $data['role'] : 'operator';
+			$clean['role'] = $this->normalise_pf_role( $data['role'] );
 		}
 		if ( isset( $data['is_active'] ) ) {
 			$clean['is_active'] = (int) $data['is_active'];

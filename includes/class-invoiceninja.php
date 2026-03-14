@@ -102,7 +102,8 @@ class ProcessFlow_InvoiceNinja {
 			$invoice_number = $invoice['number'] ?? ( $invoice['invoice_number'] ?? '' );
 			$amount         = isset( $invoice['amount'] ) ? number_format( (float) $invoice['amount'], 2 ) : '';
 			$due_date       = $invoice['due_date'] ?? '';
-			$status_map     = array( 1 => 'Draft', 2 => 'Sent', 3 => 'Partial', 4 => 'Paid', 5 => 'Overdue', 6 => 'Cancelled' );
+			// Invoice Ninja v5 status IDs (https://invoice-ninja.readthedocs.io/en/latest/api.html).
+			$status_map = array( 1 => 'Draft', 2 => 'Sent', 3 => 'Partial', 4 => 'Paid', 5 => 'Overdue', 6 => 'Cancelled' );
 			$status_id      = isset( $invoice['status_id'] ) ? (int) $invoice['status_id'] : 0;
 			$status_label   = $status_map[ $status_id ] ?? 'Unknown';
 
