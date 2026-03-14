@@ -404,6 +404,54 @@ class ProcessFlow_Database {
 		);
 	}
 
+	/**
+	 * Return the most-recently-sent WhatsApp stage for each order in the list.
+	 *
+	 * Returns an associative array keyed by order ID, each value being an array
+	 * with 'stage_name' and 'stage_color'.
+	 *
+	 * @param int[] $order_ids List of order IDs to query.
+	 * @return array<int, array{stage_name: string, stage_color: string}>
+	 */
+	public function get_last_notified_stages( array $order_ids ): array {
+		if ( empty( $order_ids ) ) {
+			return array();
+		}
+
+		global $wpdb;
+
+		$ids          = array_values( array_map( 'absint', $order_ids ) );
+		$placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
+
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT h.order_id, s.name AS stage_name, s.color AS stage_color
+				 FROM {$wpdb->prefix}processflow_stage_history h
+				 INNER JOIN {$wpdb->prefix}processflow_stages s ON h.stage_id = s.id
+				 WHERE h.notification_sent = 1
+				   AND h.order_id IN ($placeholders)
+				 ORDER BY h.entered_at DESC",
+				...$ids
+			)
+		) ?: array();
+		// phpcs:enable
+
+		// Keep only the most-recent row per order (first occurrence because we ORDER BY DESC).
+		$result = array();
+		foreach ( $rows as $row ) {
+			$oid = (int) $row->order_id;
+			if ( ! isset( $result[ $oid ] ) ) {
+				$result[ $oid ] = array(
+					'stage_name'  => $row->stage_name,
+					'stage_color' => $row->stage_color,
+				);
+			}
+		}
+
+		return $result;
+	}
+
 	// ------------------------------------------------------------------ //
 	// Custom fields                                                        //
 	// ------------------------------------------------------------------ //

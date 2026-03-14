@@ -47,6 +47,7 @@
 			this.bindCustomFieldForm();
 			this.bindSearch();
 			this.bindColorPickers();
+			this.bindWhatsAppSend();
 		},
 
 		// -------------------------------------------------------------- //
@@ -214,7 +215,7 @@
 				</div>
 				<div class="pf-modal__footer">
 					<button class="pf-btn pf-btn--outline" onclick="PFAdmin.closeModal()">Cancel</button>
-					<button class="pf-btn pf-btn--primary" onclick="$('#pf-order-form').submit()">${orderId ? 'Update Order' : 'Create Order'}</button>
+					<button class="pf-btn pf-btn--primary" onclick="jQuery('#pf-order-form').trigger('submit')">${orderId ? 'Update Order' : 'Create Order'}</button>
 				</div>
 			</div>`;
 
@@ -244,7 +245,7 @@
 			const $tbody   = $wrap.find('tbody');
 			const $counter = $wrap.find('.pf-orders-counter');
 
-			$tbody.html(`<tr><td colspan="7" style="text-align:center;padding:30px;">${this.strings.loading}</td></tr>`);
+			$tbody.html(`<tr><td colspan="8" style="text-align:center;padding:30px;">${this.strings.loading}</td></tr>`);
 
 			this.post('processflow_get_orders_json', { search, stage, page, per_page: 20 }).done((res) => {
 				if (!res.success) { return; }
@@ -252,17 +253,20 @@
 				if ($counter.length) $counter.text(res.data.total + ' orders total');
 
 				if (!orders.length) {
-					$tbody.html('<tr><td colspan="7" style="text-align:center;padding:30px;color:#787c82;">No orders found.</td></tr>');
+					$tbody.html('<tr><td colspan="8" style="text-align:center;padding:30px;color:#787c82;">No orders found.</td></tr>');
 					return;
 				}
 
 				const rows = orders.map(o => {
 					const stageBadge = o.stage_name
-						? `<span class="pf-badge" style="background:${o.stage_color}">${o.stage_name}</span>`
+						? `<span class="pf-badge" style="background:${o.stage_color}">${this.esc(o.stage_name)}</span>`
 						: '<span class="pf-badge" style="background:#aaa">N/A</span>';
+					const waSentBadge = o.whatsapp_sent_stage
+						? `<span class="pf-badge" style="background:${this.esc(o.whatsapp_sent_color)}">${this.esc(o.whatsapp_sent_stage)}</span>`
+						: '<span style="color:#aaa;">&mdash;</span>';
 					const waNum = o.whatsapp ? o.whatsapp.replace(/^\+/, '') : '';
 					const waLink = waNum
-						? `<a href="https://wa.me/${waNum}" target="_blank" rel="noopener noreferrer">${o.whatsapp}</a>`
+						? `<a href="https://wa.me/${waNum}" target="_blank" rel="noopener noreferrer">${this.esc(o.whatsapp)}</a>`
 						: '';
 					return `<tr id="pf-order-row-${o.id}">
 						<td>#${o.id}</td>
@@ -270,12 +274,14 @@
 						<td>${this.esc(o.business_name)}</td>
 						<td>${waLink}</td>
 						<td>${stageBadge}</td>
+						<td>${waSentBadge}</td>
 						<td>${this.esc(o.created_at)}</td>
 						<td>
 							<div style="display:flex;gap:5px;flex-wrap:wrap;">
 								<button class="pf-btn pf-btn--outline pf-btn--sm pf-edit-order" data-id="${o.id}" title="Edit">✏</button>
 								<button class="pf-btn pf-btn--outline pf-btn--sm pf-show-qr" data-id="${o.id}" title="QR Code">⊙</button>
 								<button class="pf-btn pf-btn--success pf-btn--sm pf-advance-stage" data-id="${o.id}" title="Advance Stage">▶</button>
+								<button class="pf-btn pf-btn--sm pf-send-whatsapp" data-id="${o.id}" title="Send WhatsApp" style="background:#25d366;color:#fff;border-color:#25d366;">&#128172;</button>
 								<button class="pf-btn pf-btn--danger pf-btn--sm pf-delete-order" data-id="${o.id}" title="Delete">✕</button>
 							</div>
 						</td>
@@ -283,7 +289,7 @@
 				});
 				$tbody.html(rows.join(''));
 			}).fail(() => {
-				$tbody.html('<tr><td colspan="7" style="text-align:center;padding:20px;color:#e74c3c;">Failed to load orders.</td></tr>');
+				$tbody.html('<tr><td colspan="8" style="text-align:center;padding:20px;color:#e74c3c;">Failed to load orders.</td></tr>');
 			});
 		},
 
@@ -471,6 +477,32 @@
 				timer = setTimeout(() => this.reloadOrderTable(), 400);
 			});
 			$(document).on('change', '#pf-filter-stage', () => this.reloadOrderTable());
+		},
+
+		// -------------------------------------------------------------- //
+		// WhatsApp send notification                                       //
+		// -------------------------------------------------------------- //
+		bindWhatsAppSend() {
+			$(document).on('click', '.pf-send-whatsapp', (e) => {
+				const $btn = $(e.currentTarget).prop('disabled', true);
+				const id   = $btn.data('id');
+				this.post('processflow_send_whatsapp_notification', { order_id: id }).done((res) => {
+					if (res.success) {
+						// Open the WhatsApp deep-link in a new tab.
+						if (res.data.wa_url && res.data.wa_url !== '#') {
+							window.open(res.data.wa_url, '_blank', 'noopener,noreferrer');
+						}
+						this.notice(res.data.message);
+						this.reloadOrderTable();
+					} else {
+						this.notice(res.data.message, 'error');
+					}
+				}).fail(() => {
+					this.notice(this.strings.error, 'error');
+				}).always(() => {
+					$btn.prop('disabled', false);
+				});
+			});
 		},
 
 		// -------------------------------------------------------------- //
@@ -675,7 +707,7 @@ Active
 </div>
 <div class="pf-modal__footer">
 <button class="pf-btn pf-btn--outline" onclick="PFAdmin.closeModal()">Cancel</button>
-<button class="pf-btn pf-btn--primary" onclick="$('#pf-user-form').submit()">${isEdit ? 'Update User' : 'Create User'}</button>
+<button class="pf-btn pf-btn--primary" onclick="jQuery('#pf-user-form').trigger('submit')">${isEdit ? 'Update User' : 'Create User'}</button>
 </div>
 </div>`;
 

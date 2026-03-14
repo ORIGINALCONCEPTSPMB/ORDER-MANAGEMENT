@@ -60,6 +60,10 @@ $orders       = $orders_result['items'];
 $orders_total = $orders_result['total'];
 $orders_pages = (int) ceil( $orders_total / $pf_per_page );
 
+/* ---- Pre-fetch last WhatsApp-notified stage per order ------------- */
+$pf_order_ids     = ! empty( $orders ) ? array_map( function ( $o ) { return (int) $o->id; }, $orders ) : array();
+$pf_last_notified = $db->get_last_notified_stages( $pf_order_ids );
+
 /* ---- Gather data for Users tab ------------------------------------ */
 $pf_users = $is_admin ? $db->get_pf_users() : array();
 
@@ -305,6 +309,7 @@ if ( ! in_array( $active_tab, $allowed_tabs, true ) ) {
 										<th><?php esc_html_e( 'Business', 'processflow-manager' ); ?></th>
 										<th><?php esc_html_e( 'WhatsApp', 'processflow-manager' ); ?></th>
 										<th><?php esc_html_e( 'Stage', 'processflow-manager' ); ?></th>
+										<th><?php esc_html_e( 'WA Sent', 'processflow-manager' ); ?></th>
 										<th><?php esc_html_e( 'Created', 'processflow-manager' ); ?></th>
 										<th><?php esc_html_e( 'Actions', 'processflow-manager' ); ?></th>
 									</tr>
@@ -319,6 +324,7 @@ if ( ! in_array( $active_tab, $allowed_tabs, true ) ) {
 													break;
 												}
 											}
+											$notified_info = isset( $pf_last_notified[ (int) $order->id ] ) ? $pf_last_notified[ (int) $order->id ] : null;
 										?>
 										<tr id="pf-order-row-<?php echo esc_attr( $order->id ); ?>">
 											<td>#<?php echo esc_html( $order->id ); ?></td>
@@ -338,12 +344,22 @@ if ( ! in_array( $active_tab, $allowed_tabs, true ) ) {
 													<span class="pf-badge" style="background:#aaa"><?php esc_html_e( 'N/A', 'processflow-manager' ); ?></span>
 												<?php endif; ?>
 											</td>
+											<td>
+												<?php if ( $notified_info ) : ?>
+													<span class="pf-badge" style="background:<?php echo esc_attr( $notified_info['stage_color'] ); ?>">
+														<?php echo esc_html( $notified_info['stage_name'] ); ?>
+													</span>
+												<?php else : ?>
+													<span style="color:#aaa;">&mdash;</span>
+												<?php endif; ?>
+											</td>
 											<td><?php echo esc_html( $order->created_at ); ?></td>
 											<td>
 												<div style="display:flex;gap:5px;flex-wrap:wrap;">
 													<button class="pf-btn pf-btn--outline pf-btn--sm pf-edit-order" data-id="<?php echo esc_attr( $order->id ); ?>" title="<?php esc_attr_e( 'Edit', 'processflow-manager' ); ?>">✏</button>
 													<button class="pf-btn pf-btn--outline pf-btn--sm pf-show-qr" data-id="<?php echo esc_attr( $order->id ); ?>" title="<?php esc_attr_e( 'QR Code', 'processflow-manager' ); ?>">⊙</button>
 													<button class="pf-btn pf-btn--success pf-btn--sm pf-advance-stage" data-id="<?php echo esc_attr( $order->id ); ?>" title="<?php esc_attr_e( 'Advance Stage', 'processflow-manager' ); ?>">▶</button>
+													<button class="pf-btn pf-btn--sm pf-send-whatsapp" data-id="<?php echo esc_attr( $order->id ); ?>" title="<?php esc_attr_e( 'Send WhatsApp', 'processflow-manager' ); ?>" style="background:#25d366;color:#fff;border-color:#25d366;">&#128172;</button>
 													<button class="pf-btn pf-btn--danger pf-btn--sm pf-delete-order" data-id="<?php echo esc_attr( $order->id ); ?>" title="<?php esc_attr_e( 'Delete', 'processflow-manager' ); ?>">✕</button>
 												</div>
 											</td>
@@ -351,7 +367,7 @@ if ( ! in_array( $active_tab, $allowed_tabs, true ) ) {
 										<?php endforeach; ?>
 									<?php else : ?>
 										<tr>
-											<td colspan="7" style="text-align:center;padding:30px;color:#787c82;">
+											<td colspan="8" style="text-align:center;padding:30px;color:#787c82;">
 												<?php esc_html_e( 'No orders found.', 'processflow-manager' ); ?>
 											</td>
 										</tr>

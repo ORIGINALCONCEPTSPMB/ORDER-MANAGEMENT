@@ -327,12 +327,14 @@ class ProcessFlow_Admin {
 			'processflow_sync_invoice_ninja',
 			'processflow_import_csv',
 			'processflow_csv_template',
+			'processflow_send_whatsapp_notification',
 		);
 
 		foreach ( $actions as $action ) {
 			add_action( 'wp_ajax_' . $action, array( $this, 'dispatch_ajax' ) );
 		}
 		// These are also available to non-WP-logged-in users authenticated via shortcode session.
+		add_action( 'wp_ajax_nopriv_processflow_send_whatsapp_notification', array( $this, 'dispatch_ajax' ) );
 		add_action( 'wp_ajax_nopriv_processflow_csv_template', array( $this, 'dispatch_ajax' ) );
 		add_action( 'wp_ajax_nopriv_processflow_get_orders_json', array( $this, 'dispatch_ajax' ) );
 		add_action( 'wp_ajax_nopriv_processflow_create_order', array( $this, 'dispatch_ajax' ) );
@@ -383,6 +385,7 @@ class ProcessFlow_Admin {
 			'processflow_get_labels_html',
 			'processflow_csv_template',
 			'processflow_import_csv',
+			'processflow_send_whatsapp_notification',
 		);
 		$admin_only_actions = array(
 			'processflow_create_stage',
@@ -472,6 +475,9 @@ class ProcessFlow_Admin {
 				break;
 			case 'processflow_csv_template':
 				$this->ajax_csv_template();
+				break;
+			case 'processflow_send_whatsapp_notification':
+				$this->ajax_send_whatsapp_notification();
 				break;
 			default:
 				wp_send_json_error( array( 'message' => __( 'Unknown action.', 'processflow-manager' ) ) );
@@ -578,20 +584,27 @@ class ProcessFlow_Admin {
 			$stage_map[ (int) $s->id ] = array( 'name' => $s->name, 'color' => $s->color );
 		}
 
+		// Build a map of last-notified stage per order.
+		$order_ids     = array_map( function ( $o ) { return (int) $o->id; }, $result['items'] );
+		$last_notified = $this->db->get_last_notified_stages( $order_ids );
+
 		$items = array();
 		foreach ( $result['items'] as $order ) {
-			$sid        = (int) $order->current_stage;
-			$stage_info = isset( $stage_map[ $sid ] ) ? $stage_map[ $sid ] : null;
-			$items[]    = array(
-				'id'            => (int) $order->id,
-				'customer_name' => $order->customer_name,
-				'business_name' => $order->business_name,
-				'whatsapp'      => $order->whatsapp,
-				'job_details'   => $order->job_details,
-				'current_stage' => $sid,
-				'stage_name'    => $stage_info ? $stage_info['name'] : '',
-				'stage_color'   => $stage_info ? $stage_info['color'] : '#aaa',
-				'created_at'    => $order->created_at,
+			$sid           = (int) $order->current_stage;
+			$stage_info    = isset( $stage_map[ $sid ] ) ? $stage_map[ $sid ] : null;
+			$notified_info = isset( $last_notified[ (int) $order->id ] ) ? $last_notified[ (int) $order->id ] : null;
+			$items[]       = array(
+				'id'                   => (int) $order->id,
+				'customer_name'        => $order->customer_name,
+				'business_name'        => $order->business_name,
+				'whatsapp'             => $order->whatsapp,
+				'job_details'          => $order->job_details,
+				'current_stage'        => $sid,
+				'stage_name'           => $stage_info ? $stage_info['name'] : '',
+				'stage_color'          => $stage_info ? $stage_info['color'] : '#aaa',
+				'created_at'           => $order->created_at,
+				'whatsapp_sent_stage'  => $notified_info ? $notified_info['stage_name'] : '',
+				'whatsapp_sent_color'  => $notified_info ? $notified_info['stage_color'] : '',
 			);
 		}
 
@@ -675,6 +688,36 @@ class ProcessFlow_Admin {
 		}
 
 		wp_send_json_success( array( 'qr_url' => $url ) );
+	}
+
+	private function ajax_send_whatsapp_notification() {
+		$order_id = isset( $_POST['order_id'] ) ? absint( $_POST['order_id'] ) : 0;
+		if ( ! $order_id ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid order ID.', 'processflow-manager' ) ) );
+		}
+
+		$order = $this->db->get_order( $order_id );
+		if ( ! $order ) {
+			wp_send_json_error( array( 'message' => __( 'Order not found.', 'processflow-manager' ) ) );
+		}
+
+		$stage_id = (int) $order->current_stage;
+		if ( ! $stage_id ) {
+			wp_send_json_error( array( 'message' => __( 'Order has no stage assigned.', 'processflow-manager' ) ) );
+		}
+
+		$wa_url = $this->whatsapp->get_whatsapp_link( $order_id, $stage_id );
+
+		// Mark notification as sent in the stage history.
+		$this->whatsapp->send_stage_notification( $order_id, $stage_id );
+
+		$stage = $this->db->get_stage( $stage_id );
+		wp_send_json_success( array(
+			'wa_url'      => $wa_url,
+			'stage_name'  => $stage ? $stage->name : '',
+			'stage_color' => $stage ? $stage->color : '#27ae60',
+			'message'     => __( 'WhatsApp notification marked as sent.', 'processflow-manager' ),
+		) );
 	}
 
 	private function ajax_save_settings() {
