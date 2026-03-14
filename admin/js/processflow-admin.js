@@ -218,16 +218,64 @@
 		},
 
 		reloadOrderTable() {
-			const $table = $('#pf-order-table-wrap');
-			if (!$table.length) return;
-			const search = $('#pf-search').val() || '';
-			const stage  = $('#pf-filter-stage').val() || '';
-			const page   = $table.data('page') || 1;
-			$table.html('<p style="padding:20px;text-align:center;">' + this.strings.loading + '</p>');
-			$.get(window.location.href, { pf_search: search, pf_stage: stage, pf_page: page }, (html) => {
-				const $new = $(html).find('#pf-order-table-wrap');
-				if ($new.length) $table.replaceWith($new);
+			const $wrap = $('#pf-order-table-wrap');
+			if (!$wrap.length) return;
+			const search   = $('#pf-search').val() || '';
+			const stage    = $('#pf-filter-stage').val() || '';
+			const page     = parseInt($wrap.data('page'), 10) || 1;
+			const $tbody   = $wrap.find('tbody');
+			const $counter = $wrap.find('.pf-orders-counter');
+
+			$tbody.html(`<tr><td colspan="7" style="text-align:center;padding:30px;">${this.strings.loading}</td></tr>`);
+
+			this.post('processflow_get_orders_json', { search, stage, page, per_page: 20 }).done((res) => {
+				if (!res.success) { return; }
+				const orders = res.data.items;
+				if ($counter.length) $counter.text(res.data.total + ' orders total');
+
+				if (!orders.length) {
+					$tbody.html('<tr><td colspan="7" style="text-align:center;padding:30px;color:#787c82;">No orders found.</td></tr>');
+					return;
+				}
+
+				const rows = orders.map(o => {
+					const stageBadge = o.stage_name
+						? `<span class="pf-badge" style="background:${o.stage_color}">${o.stage_name}</span>`
+						: '<span class="pf-badge" style="background:#aaa">N/A</span>';
+					const waNum = o.whatsapp ? o.whatsapp.replace(/^\+/, '') : '';
+					const waLink = waNum
+						? `<a href="https://wa.me/${waNum}" target="_blank" rel="noopener noreferrer">${o.whatsapp}</a>`
+						: '';
+					return `<tr id="pf-order-row-${o.id}">
+						<td>#${o.id}</td>
+						<td>${this.esc(o.customer_name)}</td>
+						<td>${this.esc(o.business_name)}</td>
+						<td>${waLink}</td>
+						<td>${stageBadge}</td>
+						<td>${this.esc(o.created_at)}</td>
+						<td>
+							<div style="display:flex;gap:5px;flex-wrap:wrap;">
+								<button class="pf-btn pf-btn--outline pf-btn--sm pf-edit-order" data-id="${o.id}" title="Edit">✏</button>
+								<button class="pf-btn pf-btn--outline pf-btn--sm pf-show-qr" data-id="${o.id}" title="QR Code">⊙</button>
+								<button class="pf-btn pf-btn--success pf-btn--sm pf-advance-stage" data-id="${o.id}" title="Advance Stage">▶</button>
+								<button class="pf-btn pf-btn--danger pf-btn--sm pf-delete-order" data-id="${o.id}" title="Delete">✕</button>
+							</div>
+						</td>
+					</tr>`;
+				});
+				$tbody.html(rows.join(''));
+			}).fail(() => {
+				$tbody.html('<tr><td colspan="7" style="text-align:center;padding:20px;color:#e74c3c;">Failed to load orders.</td></tr>');
 			});
+		},
+
+		/** HTML-escape a string for safe insertion. */
+		esc(str) {
+			return String(str || '')
+				.replace(/&/g, '&amp;')
+				.replace(/</g, '&lt;')
+				.replace(/>/g, '&gt;')
+				.replace(/"/g, '&quot;');
 		},
 
 		// -------------------------------------------------------------- //
@@ -350,20 +398,21 @@
 		},
 
 		// -------------------------------------------------------------- //
-		// Settings                                                         //
+		// Settings – wire ALL #pf-settings-form instances                //
 		// -------------------------------------------------------------- //
 		bindSettingsForm() {
-			$(document).on('submit', '#pf-settings-form', (e) => {
+			$(document).on('submit', '.pf-settings-form', (e) => {
 				e.preventDefault();
-				const data = {};
-				$(e.currentTarget).serializeArray().forEach(({ name, value }) => {
-					data[name] = value;
-				});
+				const $form   = $(e.currentTarget);
+				const notice  = $form.data('notice') || '#pf-settings-notice';
+				const data    = {};
+				$form.serializeArray().forEach(({ name, value }) => { data[name] = value; });
+				const $btn = $form.find('[type="submit"]').prop('disabled', true);
 				this.post('processflow_save_settings', data).done((res) => {
 					res.success
-						? this.notice(res.data.message, 'success', '#pf-settings-notice')
-						: this.notice(res.data.message, 'error', '#pf-settings-notice');
-				});
+						? this.notice(res.data.message, 'success', notice)
+						: this.notice(res.data.message, 'error', notice);
+				}).always(() => $btn.prop('disabled', false));
 			});
 		},
 
@@ -408,7 +457,15 @@
 		// Color pickers                                                    //
 		// -------------------------------------------------------------- //
 		bindColorPickers() {
-			$('.pf-color-picker').wpColorPicker();
+			// wpColorPicker is an admin script; it may not be loaded on frontend pages.
+			if (typeof $.fn.wpColorPicker === 'function') {
+				$('.pf-color-picker').wpColorPicker();
+			} else {
+				// Fallback: convert to native <input type="color"> so color selection still works.
+				$('.pf-color-picker').each(function () {
+					$(this).attr('type', 'color').css({ height: '36px', padding: '2px 4px', width: '60px', cursor: 'pointer' });
+				});
+			}
 		},
 	};
 

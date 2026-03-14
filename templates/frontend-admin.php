@@ -151,9 +151,28 @@ if ( ! in_array( $active_tab, $allowed_tabs, true ) ) {
 		</div>
 	</header>
 
-	<script>window.pfStages = <?php echo $stages_json; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>;</script>
+	<?php
+	// Build the JS config object.
+	$pf_js_config = array(
+		'ajax_url'               => admin_url( 'admin-ajax.php' ),
+		'processflow_ajax_nonce' => wp_create_nonce( 'processflow_admin_nonce' ),
+		'confirm_delete'         => __( 'Are you sure you want to delete this item? This cannot be undone.', 'processflow-manager' ),
+		'strings'                => array(
+			'saving'  => __( 'Saving…', 'processflow-manager' ),
+			'saved'   => __( 'Saved!', 'processflow-manager' ),
+			'error'   => __( 'An error occurred. Please try again.', 'processflow-manager' ),
+			'loading' => __( 'Loading…', 'processflow-manager' ),
+		),
+	);
+	?>
+	<script>
+	/* Inline fallback – ensures processflowAdmin is defined even if wp_localize_script
+	   did not run (e.g. when script enqueue detection failed on this install). */
+	window.processflowAdmin = window.processflowAdmin || <?php echo wp_json_encode( $pf_js_config ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>;
+	window.pfStages = <?php echo $stages_json; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>;
+	</script>
 
-	<div id="pf-notice-area" style="padding:0 24px;"></div>
+	<div id="pf-notice-area"></div>
 
 	<!-- ============================================================ -->
 	<!-- Tab panels                                                    -->
@@ -360,7 +379,7 @@ if ( ! in_array( $active_tab, $allowed_tabs, true ) ) {
 					<?php endif; ?>
 				</div>
 				<?php endif; ?>
-				<p style="color:#787c82;font-size:12px;margin-top:8px;">
+				<p class="pf-orders-counter" style="color:#787c82;font-size:12px;margin-top:8px;">
 					<?php printf( esc_html__( '%d orders total', 'processflow-manager' ), esc_html( $orders_total ) ); ?>
 				</p>
 			</div>
@@ -657,7 +676,7 @@ if ( ! in_array( $active_tab, $allowed_tabs, true ) ) {
 							<?php esc_html_e( 'Configure your Invoice Ninja connection. The API token is found in Invoice Ninja under Settings → API Tokens.', 'processflow-manager' ); ?>
 						</p>
 						<div id="pf-in-settings-notice"></div>
-						<form id="pf-settings-form" data-notice="#pf-in-settings-notice">
+						<form class="pf-settings-form" data-notice="#pf-in-settings-notice">
 							<div class="pf-form-group">
 								<label><?php esc_html_e( 'Invoice Ninja URL', 'processflow-manager' ); ?></label>
 								<input type="url" name="invoiceninja_url" value="<?php echo esc_attr( $in_url ); ?>" placeholder="https://your-invoiceninja.com">
@@ -724,7 +743,7 @@ if ( ! in_array( $active_tab, $allowed_tabs, true ) ) {
 					<div class="pf-card__header"><h3 class="pf-card__title"><?php esc_html_e( 'Company Details', 'processflow-manager' ); ?></h3></div>
 					<div class="pf-card__body">
 						<?php $defaults = $settings->get_default_settings(); ?>
-						<form id="pf-settings-form">
+						<form class="pf-settings-form" data-notice="#pf-settings-notice">
 							<div class="pf-form-group">
 								<label><?php esc_html_e( 'Company Name', 'processflow-manager' ); ?></label>
 								<input type="text" name="company_name" value="<?php echo esc_attr( $settings->get_setting( 'company_name', $defaults['company_name'] ) ); ?>">
@@ -761,7 +780,7 @@ if ( ! in_array( $active_tab, $allowed_tabs, true ) ) {
 					<div class="pf-card__header"><h3 class="pf-card__title"><?php esc_html_e( 'Admin Portal Password', 'processflow-manager' ); ?></h3></div>
 					<div class="pf-card__body">
 						<p style="color:#555;margin-top:0;"><?php esc_html_e( 'This password is the fallback for the front-end admin login when no username is found in the platform users table.', 'processflow-manager' ); ?></p>
-						<form id="pf-settings-form">
+						<form class="pf-settings-form" data-notice="#pf-settings-notice">
 							<div class="pf-form-group">
 								<label><?php esc_html_e( 'New Password', 'processflow-manager' ); ?></label>
 								<input type="password" name="new_password" autocomplete="new-password">

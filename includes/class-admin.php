@@ -54,9 +54,42 @@ class ProcessFlow_Admin {
 	 * Enqueue admin assets on front-end pages that contain the shortcode.
 	 */
 	public function enqueue_scripts_frontend() {
+		// Detection method 1: global $post (most common).
 		global $post;
-		if ( ! $post || ! has_shortcode( $post->post_content, 'processflow_admin_dashboard' ) ) {
+		$has_sc = $post && has_shortcode( $post->post_content, 'processflow_admin_dashboard' );
+
+		// Detection method 2: queried object (handles sub-directory / some page-builder setups
+		// where $post is set late or content is stored differently).
+		if ( ! $has_sc ) {
+			$queried = get_queried_object();
+			if ( $queried instanceof WP_Post ) {
+				$has_sc = has_shortcode( $queried->post_content, 'processflow_admin_dashboard' );
+			}
+		}
+
+		// Detection method 3: session cookie present → user is already logged in to the
+		// dashboard, so always load scripts (safe because they are lightweight).
+		if ( ! $has_sc ) {
+			$token = isset( $_COOKIE['pf_admin_token'] ) ? sanitize_text_field( wp_unslash( $_COOKIE['pf_admin_token'] ) ) : '';
+			if ( $token && get_transient( 'processflow_admin_session_' . $token ) ) {
+				$has_sc = true;
+			}
+		}
+
+		if ( ! $has_sc ) {
 			return;
+		}
+
+		$this->do_frontend_enqueue();
+	}
+
+	/**
+	 * Actually enqueue the admin CSS/JS for the frontend shortcode page.
+	 * Extracted so it can be called from both the hook and inline from the shortcode.
+	 */
+	private function do_frontend_enqueue() {
+		if ( wp_script_is( 'processflow-admin', 'enqueued' ) ) {
+			return; // Already done.
 		}
 		wp_enqueue_style(
 			'processflow-admin',
@@ -64,29 +97,41 @@ class ProcessFlow_Admin {
 			array(),
 			PROCESSFLOW_VERSION
 		);
-		wp_enqueue_style( 'wp-color-picker' );
-		wp_enqueue_script( 'wp-color-picker' );
+		// wp-color-picker is an admin script; load it only when available on the frontend.
+		if ( wp_script_is( 'wp-color-picker', 'registered' ) ) {
+			wp_enqueue_style( 'wp-color-picker' );
+			wp_enqueue_script( 'wp-color-picker' );
+		}
 		wp_enqueue_script(
 			'processflow-admin',
 			PROCESSFLOW_PLUGIN_URL . 'admin/js/processflow-admin.js',
-			array( 'jquery', 'jquery-ui-sortable', 'wp-color-picker' ),
+			array( 'jquery', 'jquery-ui-sortable' ),
 			PROCESSFLOW_VERSION,
 			true
 		);
 		wp_localize_script(
 			'processflow-admin',
 			'processflowAdmin',
-			array(
-				'ajax_url'               => admin_url( 'admin-ajax.php' ),
-				'processflow_ajax_nonce' => wp_create_nonce( 'processflow_admin_nonce' ),
-				'confirm_delete'         => __( 'Are you sure you want to delete this item? This cannot be undone.', 'processflow-manager' ),
-				'strings'                => array(
-					'saving'  => __( 'Saving…', 'processflow-manager' ),
-					'saved'   => __( 'Saved!', 'processflow-manager' ),
-					'error'   => __( 'An error occurred. Please try again.', 'processflow-manager' ),
-					'loading' => __( 'Loading…', 'processflow-manager' ),
-				),
-			)
+			$this->get_frontend_script_data()
+		);
+	}
+
+	/**
+	 * Build the processflowAdmin JS config object.
+	 *
+	 * @return array
+	 */
+	private function get_frontend_script_data(): array {
+		return array(
+			'ajax_url'               => admin_url( 'admin-ajax.php' ),
+			'processflow_ajax_nonce' => wp_create_nonce( 'processflow_admin_nonce' ),
+			'confirm_delete'         => __( 'Are you sure you want to delete this item? This cannot be undone.', 'processflow-manager' ),
+			'strings'                => array(
+				'saving'  => __( 'Saving…', 'processflow-manager' ),
+				'saved'   => __( 'Saved!', 'processflow-manager' ),
+				'error'   => __( 'An error occurred. Please try again.', 'processflow-manager' ),
+				'loading' => __( 'Loading…', 'processflow-manager' ),
+			),
 		);
 	}
 
@@ -264,6 +309,7 @@ class ProcessFlow_Admin {
 			'processflow_update_order',
 			'processflow_delete_order',
 			'processflow_get_order_data',
+			'processflow_get_orders_json',
 			'processflow_update_stage',
 			'processflow_create_stage',
 			'processflow_delete_stage',
@@ -286,8 +332,28 @@ class ProcessFlow_Admin {
 		foreach ( $actions as $action ) {
 			add_action( 'wp_ajax_' . $action, array( $this, 'dispatch_ajax' ) );
 		}
-		// CSV template is also available without WP login (session auth only).
+		// These are also available to non-WP-logged-in users authenticated via shortcode session.
 		add_action( 'wp_ajax_nopriv_processflow_csv_template', array( $this, 'dispatch_ajax' ) );
+		add_action( 'wp_ajax_nopriv_processflow_get_orders_json', array( $this, 'dispatch_ajax' ) );
+		add_action( 'wp_ajax_nopriv_processflow_create_order', array( $this, 'dispatch_ajax' ) );
+		add_action( 'wp_ajax_nopriv_processflow_update_order', array( $this, 'dispatch_ajax' ) );
+		add_action( 'wp_ajax_nopriv_processflow_delete_order', array( $this, 'dispatch_ajax' ) );
+		add_action( 'wp_ajax_nopriv_processflow_get_order_data', array( $this, 'dispatch_ajax' ) );
+		add_action( 'wp_ajax_nopriv_processflow_advance_stage', array( $this, 'dispatch_ajax' ) );
+		add_action( 'wp_ajax_nopriv_processflow_get_qr', array( $this, 'dispatch_ajax' ) );
+		add_action( 'wp_ajax_nopriv_processflow_get_labels_html', array( $this, 'dispatch_ajax' ) );
+		add_action( 'wp_ajax_nopriv_processflow_import_csv', array( $this, 'dispatch_ajax' ) );
+		add_action( 'wp_ajax_nopriv_processflow_save_settings', array( $this, 'dispatch_ajax' ) );
+		add_action( 'wp_ajax_nopriv_processflow_create_stage', array( $this, 'dispatch_ajax' ) );
+		add_action( 'wp_ajax_nopriv_processflow_update_stage', array( $this, 'dispatch_ajax' ) );
+		add_action( 'wp_ajax_nopriv_processflow_delete_stage', array( $this, 'dispatch_ajax' ) );
+		add_action( 'wp_ajax_nopriv_processflow_reorder_stages', array( $this, 'dispatch_ajax' ) );
+		add_action( 'wp_ajax_nopriv_processflow_create_pf_user', array( $this, 'dispatch_ajax' ) );
+		add_action( 'wp_ajax_nopriv_processflow_update_pf_user', array( $this, 'dispatch_ajax' ) );
+		add_action( 'wp_ajax_nopriv_processflow_delete_pf_user', array( $this, 'dispatch_ajax' ) );
+		add_action( 'wp_ajax_nopriv_processflow_sync_invoice_ninja', array( $this, 'dispatch_ajax' ) );
+		add_action( 'wp_ajax_nopriv_processflow_create_custom_field', array( $this, 'dispatch_ajax' ) );
+		add_action( 'wp_ajax_nopriv_processflow_delete_custom_field', array( $this, 'dispatch_ajax' ) );
 	}
 
 	/**
@@ -311,6 +377,7 @@ class ProcessFlow_Admin {
 			'processflow_update_order',
 			'processflow_delete_order',
 			'processflow_get_order_data',
+			'processflow_get_orders_json',
 			'processflow_advance_stage',
 			'processflow_get_qr',
 			'processflow_get_labels_html',
@@ -351,6 +418,9 @@ class ProcessFlow_Admin {
 				break;
 			case 'processflow_get_order_data':
 				$this->ajax_get_order_data();
+				break;
+			case 'processflow_get_orders_json':
+				$this->ajax_get_orders_json();
 				break;
 			case 'processflow_create_stage':
 				$this->ajax_create_stage();
@@ -478,6 +548,59 @@ class ProcessFlow_Admin {
 			'whatsapp'      => $order->whatsapp,
 			'job_details'   => $order->job_details,
 			'current_stage' => $order->current_stage,
+		) );
+	}
+
+	/**
+	 * Return a paginated, filtered list of orders as JSON.
+	 * Used by the frontend admin JS to rebuild the order table without a full
+	 * page reload (avoids cookie/session issues on sub-directory installs).
+	 */
+	private function ajax_get_orders_json() {
+		// phpcs:disable WordPress.Security.NonceVerification.Missing
+		$search   = isset( $_POST['search'] )   ? sanitize_text_field( wp_unslash( $_POST['search'] ) )   : '';
+		$stage    = isset( $_POST['stage'] )    ? absint( $_POST['stage'] )    : 0;
+		$page     = isset( $_POST['page'] )     ? max( 1, absint( $_POST['page'] ) ) : 1;
+		$per_page = isset( $_POST['per_page'] ) ? absint( $_POST['per_page'] ) : 20;
+		// phpcs:enable
+
+		$result = $this->db->get_orders( array(
+			'search'   => $search,
+			'stage'    => $stage,
+			'per_page' => $per_page,
+			'page'     => $page,
+		) );
+
+		// Build a stage ID → {name, color} map for the response.
+		$stages     = $this->db->get_stages();
+		$stage_map  = array();
+		foreach ( $stages as $s ) {
+			$stage_map[ (int) $s->id ] = array( 'name' => $s->name, 'color' => $s->color );
+		}
+
+		$items = array();
+		foreach ( $result['items'] as $order ) {
+			$sid        = (int) $order->current_stage;
+			$stage_info = isset( $stage_map[ $sid ] ) ? $stage_map[ $sid ] : null;
+			$items[]    = array(
+				'id'            => (int) $order->id,
+				'customer_name' => $order->customer_name,
+				'business_name' => $order->business_name,
+				'whatsapp'      => $order->whatsapp,
+				'job_details'   => $order->job_details,
+				'current_stage' => $sid,
+				'stage_name'    => $stage_info ? $stage_info['name'] : '',
+				'stage_color'   => $stage_info ? $stage_info['color'] : '#aaa',
+				'created_at'    => $order->created_at,
+			);
+		}
+
+		wp_send_json_success( array(
+			'items'      => $items,
+			'total'      => (int) $result['total'],
+			'page'       => $page,
+			'per_page'   => $per_page,
+			'total_pages'=> (int) ceil( $result['total'] / max( 1, $per_page ) ),
 		) );
 	}
 
@@ -871,7 +994,16 @@ class ProcessFlow_Admin {
 	public function admin_dashboard_shortcode( $atts ): string {
 		$atts = shortcode_atts( array(), $atts, 'processflow_admin_dashboard' );
 
+		// Ensure scripts/styles are enqueued even if the wp_enqueue_scripts hook
+		// already fired and the post-content check missed this page.
+		$this->do_frontend_enqueue();
+
 		ob_start();
+
+		// Handle logout before session check so cookie is cleared immediately.
+		if ( isset( $_POST['processflow_admin_logout'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
+			$this->handle_shortcode_logout();
+		}
 
 		if ( ! $this->check_shortcode_session() ) {
 			// Handle login form submission.
@@ -888,13 +1020,25 @@ class ProcessFlow_Admin {
 	}
 
 	/**
+	 * Process the shortcode logout form.
+	 */
+	private function handle_shortcode_logout() {
+		$token = isset( $_COOKIE['pf_admin_token'] ) ? sanitize_text_field( wp_unslash( $_COOKIE['pf_admin_token'] ) ) : '';
+		if ( $token ) {
+			delete_transient( 'processflow_admin_session_' . $token );
+		}
+		setcookie( 'pf_admin_token', '', time() - HOUR_IN_SECONDS, COOKIEPATH, COOKIE_DOMAIN, is_ssl(), true );
+		unset( $_COOKIE['pf_admin_token'] );
+	}
+
+	/**
 	 * Process the shortcode login form.
 	 */
 	private function handle_shortcode_login() {
 		if ( ! isset( $_POST['processflow_login_nonce'] )
 			|| ! wp_verify_nonce( sanitize_key( wp_unslash( $_POST['processflow_login_nonce'] ) ), 'processflow_shortcode_login' )
 		) {
-			echo '<p class="pf-error">' . esc_html__( 'Security check failed.', 'processflow-manager' ) . '</p>';
+			echo '<p class="pf-login-error">' . esc_html__( 'Security check failed.', 'processflow-manager' ) . '</p>';
 			require_once PROCESSFLOW_PLUGIN_DIR . 'templates/admin-dashboard.php';
 			return;
 		}
@@ -920,7 +1064,7 @@ class ProcessFlow_Admin {
 			$this->set_shortcode_session( 'admin' );
 			$this->render_shortcode_dashboard();
 		} else {
-			echo '<p class="pf-error">' . esc_html__( 'Incorrect username or password.', 'processflow-manager' ) . '</p>';
+			echo '<p class="pf-login-error">' . esc_html__( 'Incorrect username or password.', 'processflow-manager' ) . '</p>';
 			require_once PROCESSFLOW_PLUGIN_DIR . 'templates/admin-dashboard.php';
 		}
 	}
