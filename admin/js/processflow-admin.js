@@ -8,6 +8,24 @@
 (function ($) {
 	'use strict';
 
+	// Defensive guard: ensure processflowAdmin is always an object.
+	// wp_localize_script outputs it just before this file, but if that somehow
+	// failed, the inline fallback in frontend-admin.php handles it.  As a final
+	// belt-and-braces measure we never let the IIFE crash on a missing global.
+	if (typeof processflowAdmin === 'undefined') {
+		window.processflowAdmin = {
+			ajax_url:                '',
+			processflow_ajax_nonce:  '',
+			confirm_delete:          'Are you sure you want to delete this item?',
+			strings: {
+				saving:  'Saving\u2026',
+				saved:   'Saved!',
+				error:   'An error occurred. Please try again.',
+				loading: 'Loading\u2026',
+			},
+		};
+	}
+
 	const PF = {
 		nonce:    processflowAdmin.processflow_ajax_nonce,
 		ajaxUrl:  processflowAdmin.ajax_url,
@@ -334,6 +352,8 @@
 		},
 
 		bindStageDragDrop() {
+			// Guard: $.fn.sortable requires jQuery UI – not always loaded on frontend.
+			if (typeof $.fn.sortable !== 'function') { return; }
 			$('.pf-stage-list').sortable({
 				handle: '.pf-stage-item__handle',
 				axis:   'y',
@@ -493,9 +513,12 @@ this.bindDashboardButtons();
 },
 
 post(action, data) {
-return $.post(window.processflowAdmin ? processflowAdmin.ajax_url : ajaxurl, {
+// Always use processflowAdmin (set by wp_localize_script or the inline fallback);
+// never rely on the WP-admin-only `ajaxurl` global.
+const cfg = window.processflowAdmin || {};
+return $.post(cfg.ajax_url || '', {
 action,
-nonce: window.processflowAdmin ? processflowAdmin.processflow_ajax_nonce : '',
+nonce: cfg.processflow_ajax_nonce || '',
 ...data,
 });
 },

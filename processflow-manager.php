@@ -3,7 +3,7 @@
  * Plugin Name: ProcessFlow Manager
  * Plugin URI:  https://example.com/processflow-manager
  * Description: Order management with QR code workflow tracking and WhatsApp notifications.
- * Version:     1.0.0
+ * Version:     1.1.0
  * Author:      ProcessFlow Team
  * Author URI:  https://example.com
  * License:     GPL-2.0+
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Plugin constants.
-define( 'PROCESSFLOW_VERSION', '1.0.0' );
+define( 'PROCESSFLOW_VERSION', '1.1.0' );
 define( 'PROCESSFLOW_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'PROCESSFLOW_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 

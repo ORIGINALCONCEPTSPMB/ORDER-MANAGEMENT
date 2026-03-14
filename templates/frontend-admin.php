@@ -142,7 +142,7 @@ if ( ! in_array( $active_tab, $allowed_tabs, true ) ) {
 				<?php echo esc_html( ucfirst( $session_role ) ); ?>
 			</span>
 			<form method="post" style="display:inline;">
-				<?php wp_nonce_field( 'processflow_shortcode_login', 'processflow_logout_nonce' ); ?>
+				<?php wp_nonce_field( 'processflow_admin_logout', 'processflow_logout_nonce' ); ?>
 				<input type="hidden" name="processflow_admin_logout" value="1">
 				<button type="submit" class="pf-btn pf-btn--outline pf-btn--sm">
 					<?php esc_html_e( 'Log Out', 'processflow-manager' ); ?>

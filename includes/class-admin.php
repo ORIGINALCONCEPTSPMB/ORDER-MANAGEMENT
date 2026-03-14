@@ -1023,6 +1023,13 @@ class ProcessFlow_Admin {
 	 * Process the shortcode logout form.
 	 */
 	private function handle_shortcode_logout() {
+		// Verify nonce before destroying the session.
+		if ( ! isset( $_POST['processflow_logout_nonce'] )
+			|| ! wp_verify_nonce( sanitize_key( wp_unslash( $_POST['processflow_logout_nonce'] ) ), 'processflow_admin_logout' )
+		) {
+			return; // Invalid request – ignore silently.
+		}
+
 		$token = isset( $_COOKIE['pf_admin_token'] ) ? sanitize_text_field( wp_unslash( $_COOKIE['pf_admin_token'] ) ) : '';
 		if ( $token ) {
 			delete_transient( 'processflow_admin_session_' . $token );
