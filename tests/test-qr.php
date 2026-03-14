@@ -89,8 +89,8 @@ class Test_QR extends WP_UnitTestCase {
 
 		$url = $this->qr_engine->get_qr_image_url( $order_id );
 		$this->assertNotWPError( $url );
-		$this->assertStringContainsString( 'chart.googleapis.com', $url );
-		$this->assertStringContainsString( 'cht=qr', $url );
+		$this->assertStringContainsString( 'api.qrserver.com', $url );
+		$this->assertStringContainsString( 'create-qr-code', $url );
 	}
 
 	/**

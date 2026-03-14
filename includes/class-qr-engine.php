@@ -2,7 +2,7 @@
 /**
  * QR Code generation and scan handling.
  *
- * Uses the Google Charts API for free, serverless QR image generation.
+ * Uses the api.qrserver.com service for free, serverless QR image generation.
  * When a QR is scanned the browser is sent to a dedicated landing page that
  * shows order status and a WhatsApp deep-link so the worker can message the
  * customer about the current stage.
