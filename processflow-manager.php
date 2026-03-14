@@ -3,7 +3,7 @@
  * Plugin Name: ProcessFlow Manager
  * Plugin URI:  https://example.com/processflow-manager
  * Description: Order management with QR code workflow tracking and WhatsApp notifications.
- * Version:     1.1.0
+ * Version:     1.2.0
  * Author:      ProcessFlow Team
  * Author URI:  https://example.com
  * License:     GPL-2.0+

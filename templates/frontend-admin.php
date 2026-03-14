@@ -375,7 +375,7 @@ if ( ! in_array( $active_tab, $allowed_tabs, true ) ) {
 										<?php endforeach; ?>
 									<?php else : ?>
 										<tr>
-											<td colspan="8" style="text-align:center;padding:30px;color:#787c82;">
+											<td colspan="9" style="text-align:center;padding:30px;color:#787c82;">
 												<?php esc_html_e( 'No orders found.', 'processflow-manager' ); ?>
 											</td>
 										</tr>
