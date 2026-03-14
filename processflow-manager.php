@@ -77,6 +77,7 @@ class ProcessFlow_Manager {
 		require_once PROCESSFLOW_PLUGIN_DIR . 'includes/class-qr-engine.php';
 		require_once PROCESSFLOW_PLUGIN_DIR . 'includes/class-whatsapp.php';
 		require_once PROCESSFLOW_PLUGIN_DIR . 'includes/class-settings.php';
+		require_once PROCESSFLOW_PLUGIN_DIR . 'includes/class-invoiceninja.php';
 		require_once PROCESSFLOW_PLUGIN_DIR . 'includes/class-admin.php';
 		require_once PROCESSFLOW_PLUGIN_DIR . 'includes/class-public.php';
 	}
@@ -112,6 +113,7 @@ class ProcessFlow_Manager {
 	private function define_admin_hooks() {
 		add_action( 'admin_enqueue_scripts', array( $this->admin, 'enqueue_styles' ) );
 		add_action( 'admin_enqueue_scripts', array( $this->admin, 'enqueue_scripts' ) );
+		add_action( 'wp_enqueue_scripts', array( $this->admin, 'enqueue_scripts_frontend' ) );
 		add_action( 'admin_menu', array( $this->admin, 'add_menu_pages' ) );
 		$this->admin->handle_ajax_requests();
 

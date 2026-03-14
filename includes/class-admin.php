@@ -51,6 +51,47 @@ class ProcessFlow_Admin {
 	// ------------------------------------------------------------------ //
 
 	/**
+	 * Enqueue admin assets on front-end pages that contain the shortcode.
+	 */
+	public function enqueue_scripts_frontend() {
+		global $post;
+		if ( ! $post || ! has_shortcode( $post->post_content, 'processflow_admin_dashboard' ) ) {
+			return;
+		}
+		wp_enqueue_style(
+			'processflow-admin',
+			PROCESSFLOW_PLUGIN_URL . 'admin/css/processflow-admin.css',
+			array(),
+			PROCESSFLOW_VERSION
+		);
+		wp_enqueue_style( 'wp-color-picker' );
+		wp_enqueue_script( 'wp-color-picker' );
+		wp_enqueue_script(
+			'processflow-admin',
+			PROCESSFLOW_PLUGIN_URL . 'admin/js/processflow-admin.js',
+			array( 'jquery', 'jquery-ui-sortable', 'wp-color-picker' ),
+			PROCESSFLOW_VERSION,
+			true
+		);
+		wp_localize_script(
+			'processflow-admin',
+			'processflowAdmin',
+			array(
+				'ajax_url'               => admin_url( 'admin-ajax.php' ),
+				'processflow_ajax_nonce' => wp_create_nonce( 'processflow_admin_nonce' ),
+				'confirm_delete'         => __( 'Are you sure you want to delete this item? This cannot be undone.', 'processflow-manager' ),
+				'strings'                => array(
+					'saving'  => __( 'Saving…', 'processflow-manager' ),
+					'saved'   => __( 'Saved!', 'processflow-manager' ),
+					'error'   => __( 'An error occurred. Please try again.', 'processflow-manager' ),
+					'loading' => __( 'Loading…', 'processflow-manager' ),
+				),
+			)
+		);
+	}
+
+
+	/**
 	 * Enqueue admin stylesheets on plugin pages.
 	 *
 	 * @param string $hook Current admin page hook.
@@ -233,17 +274,29 @@ class ProcessFlow_Admin {
 			'processflow_delete_custom_field',
 			'processflow_get_labels_html',
 			'processflow_reorder_stages',
+			'processflow_create_pf_user',
+			'processflow_update_pf_user',
+			'processflow_delete_pf_user',
+			'processflow_get_pf_users',
+			'processflow_sync_invoice_ninja',
+			'processflow_import_csv',
+			'processflow_csv_template',
 		);
 
 		foreach ( $actions as $action ) {
 			add_action( 'wp_ajax_' . $action, array( $this, 'dispatch_ajax' ) );
 		}
+		// CSV template is also available without WP login (session auth only).
+		add_action( 'wp_ajax_nopriv_processflow_csv_template', array( $this, 'dispatch_ajax' ) );
 	}
 
 	/**
 	 * Central AJAX dispatcher – verifies nonce then calls the right method.
 	 */
 	public function dispatch_ajax() {
+		// CSV template is public (nonce still required).
+		$action = isset( $_POST['action'] ) ? sanitize_key( wp_unslash( $_POST['action'] ) ) : '';
+
 		// Nonce check.
 		check_ajax_referer( 'processflow_admin_nonce', 'nonce' );
 
@@ -252,7 +305,39 @@ class ProcessFlow_Admin {
 			wp_send_json_error( array( 'message' => __( 'Unauthorized.', 'processflow-manager' ) ), 403 );
 		}
 
-		$action = isset( $_POST['action'] ) ? sanitize_key( wp_unslash( $_POST['action'] ) ) : '';
+		// Operator role: restrict to order actions only.
+		$operator_only_actions = array(
+			'processflow_create_order',
+			'processflow_update_order',
+			'processflow_delete_order',
+			'processflow_get_order_data',
+			'processflow_advance_stage',
+			'processflow_get_qr',
+			'processflow_get_labels_html',
+			'processflow_csv_template',
+			'processflow_import_csv',
+		);
+		$admin_only_actions = array(
+			'processflow_create_stage',
+			'processflow_update_stage',
+			'processflow_delete_stage',
+			'processflow_reorder_stages',
+			'processflow_save_settings',
+			'processflow_create_custom_field',
+			'processflow_delete_custom_field',
+			'processflow_create_pf_user',
+			'processflow_update_pf_user',
+			'processflow_delete_pf_user',
+			'processflow_get_pf_users',
+			'processflow_sync_invoice_ninja',
+		);
+
+		if ( in_array( $action, $admin_only_actions, true )
+			&& ! current_user_can( 'manage_options' )
+			&& 'admin' !== $this->get_session_role()
+		) {
+			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'processflow-manager' ) ), 403 );
+		}
 
 		switch ( $action ) {
 			case 'processflow_create_order':
@@ -296,6 +381,27 @@ class ProcessFlow_Admin {
 				break;
 			case 'processflow_reorder_stages':
 				$this->ajax_reorder_stages();
+				break;
+			case 'processflow_create_pf_user':
+				$this->ajax_create_pf_user();
+				break;
+			case 'processflow_update_pf_user':
+				$this->ajax_update_pf_user();
+				break;
+			case 'processflow_delete_pf_user':
+				$this->ajax_delete_pf_user();
+				break;
+			case 'processflow_get_pf_users':
+				$this->ajax_get_pf_users();
+				break;
+			case 'processflow_sync_invoice_ninja':
+				$this->ajax_sync_invoice_ninja();
+				break;
+			case 'processflow_import_csv':
+				$this->ajax_import_csv();
+				break;
+			case 'processflow_csv_template':
+				$this->ajax_csv_template();
 				break;
 			default:
 				wp_send_json_error( array( 'message' => __( 'Unknown action.', 'processflow-manager' ) ) );
@@ -457,11 +563,17 @@ class ProcessFlow_Admin {
 			'portal_intro',
 			'orders_per_page',
 			'enable_whatsapp',
+			'invoiceninja_url',
+			'invoiceninja_token',
 		);
 
 		foreach ( $allowed as $key ) {
 			if ( isset( $_POST[ $key ] ) ) {
-				$this->settings->update_setting( $key, sanitize_text_field( wp_unslash( $_POST[ $key ] ) ) );
+				$value = sanitize_text_field( wp_unslash( $_POST[ $key ] ) );
+				if ( 'invoiceninja_url' === $key ) {
+					$value = esc_url_raw( wp_unslash( $_POST[ $key ] ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
+				}
+				$this->settings->update_setting( $key, $value );
 			}
 		}
 
@@ -522,6 +634,221 @@ class ProcessFlow_Admin {
 	}
 
 	// ------------------------------------------------------------------ //
+	// ProcessFlow Users AJAX handlers                                      //
+	// ------------------------------------------------------------------ //
+
+	private function ajax_create_pf_user() {
+		$data = array(
+			'username'  => isset( $_POST['username'] ) ? sanitize_user( wp_unslash( $_POST['username'] ) ) : '',
+			'email'     => isset( $_POST['email'] ) ? sanitize_email( wp_unslash( $_POST['email'] ) ) : '',
+			'password'  => isset( $_POST['password'] ) ? wp_unslash( $_POST['password'] ) : '', // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
+			'role'      => isset( $_POST['role'] ) ? sanitize_key( wp_unslash( $_POST['role'] ) ) : 'operator',
+			'is_active' => isset( $_POST['is_active'] ) ? absint( $_POST['is_active'] ) : 1,
+		);
+
+		if ( empty( $data['username'] ) || empty( $data['password'] ) ) {
+			wp_send_json_error( array( 'message' => __( 'Username and password are required.', 'processflow-manager' ) ) );
+		}
+
+		$result = $this->db->create_pf_user( $data );
+
+		is_wp_error( $result )
+			? wp_send_json_error( array( 'message' => $result->get_error_message() ) )
+			: wp_send_json_success( array( 'user_id' => $result, 'message' => __( 'User created successfully.', 'processflow-manager' ) ) );
+	}
+
+	private function ajax_update_pf_user() {
+		$id = isset( $_POST['user_id'] ) ? absint( $_POST['user_id'] ) : 0;
+		if ( ! $id ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid user ID.', 'processflow-manager' ) ) );
+		}
+
+		$data = array();
+		if ( isset( $_POST['username'] ) ) {
+			$data['username'] = sanitize_user( wp_unslash( $_POST['username'] ) );
+		}
+		if ( isset( $_POST['email'] ) ) {
+			$data['email'] = sanitize_email( wp_unslash( $_POST['email'] ) );
+		}
+		if ( ! empty( $_POST['password'] ) ) {
+			$data['password'] = wp_unslash( $_POST['password'] ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
+		}
+		if ( isset( $_POST['role'] ) ) {
+			$data['role'] = sanitize_key( wp_unslash( $_POST['role'] ) );
+		}
+		if ( isset( $_POST['is_active'] ) ) {
+			$data['is_active'] = absint( $_POST['is_active'] );
+		}
+
+		$result = $this->db->update_pf_user( $id, $data );
+
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+		}
+		wp_send_json_success( array( 'message' => __( 'User updated successfully.', 'processflow-manager' ) ) );
+	}
+
+	private function ajax_delete_pf_user() {
+		$id     = isset( $_POST['user_id'] ) ? absint( $_POST['user_id'] ) : 0;
+		$result = $this->db->delete_pf_user( $id );
+
+		$result
+			? wp_send_json_success( array( 'message' => __( 'User deleted.', 'processflow-manager' ) ) )
+			: wp_send_json_error( array( 'message' => __( 'Failed to delete user.', 'processflow-manager' ) ) );
+	}
+
+	private function ajax_get_pf_users() {
+		$users = $this->db->get_pf_users();
+		wp_send_json_success( array( 'users' => $users ) );
+	}
+
+	// ------------------------------------------------------------------ //
+	// Invoice Ninja AJAX handler                                           //
+	// ------------------------------------------------------------------ //
+
+	private function ajax_sync_invoice_ninja() {
+		$url   = $this->settings->get_setting( 'invoiceninja_url', '' );
+		$token = $this->settings->get_setting( 'invoiceninja_token', '' );
+
+		$ninja    = new ProcessFlow_InvoiceNinja();
+		$invoices = $ninja->sync_invoices( $url, $token );
+
+		if ( is_wp_error( $invoices ) ) {
+			wp_send_json_error( array( 'message' => $invoices->get_error_message() ) );
+		}
+
+		$created = 0;
+		$errors  = 0;
+		foreach ( $invoices as $invoice_data ) {
+			$result = $this->db->create_order( array(
+				'customer_name' => $invoice_data['customer_name'],
+				'business_name' => $invoice_data['business_name'],
+				'whatsapp'      => $invoice_data['whatsapp'],
+				'job_details'   => $invoice_data['job_details'],
+				'current_stage' => null,
+			) );
+			is_wp_error( $result ) ? $errors++ : $created++;
+		}
+
+		wp_send_json_success( array(
+			'message' => sprintf(
+				/* translators: 1: created count, 2: error count */
+				__( 'Sync complete: %1$d orders created, %2$d errors.', 'processflow-manager' ),
+				$created,
+				$errors
+			),
+			'created' => $created,
+			'errors'  => $errors,
+			'total'   => count( $invoices ),
+		) );
+	}
+
+	// ------------------------------------------------------------------ //
+	// CSV Import / Template AJAX handlers                                  //
+	// ------------------------------------------------------------------ //
+
+	private function ajax_csv_template() {
+		// Output CSV file directly.
+		header( 'Content-Type: text/csv; charset=utf-8' );
+		header( 'Content-Disposition: attachment; filename="processflow-import-template.csv"' );
+		header( 'Pragma: no-cache' );
+		header( 'Expires: 0' );
+
+		$out = fopen( 'php://output', 'w' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+		fputcsv( $out, array( 'customer_name', 'business_name', 'whatsapp', 'job_details', 'stage_name' ) );
+		fputcsv( $out, array( 'John Smith', 'Smith & Co', '+27821234567', 'Business cards x500', 'In Design' ) );
+		fclose( $out ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+		exit;
+	}
+
+	private function ajax_import_csv() {
+		if ( empty( $_FILES['csv_file'] ) || ! isset( $_FILES['csv_file']['tmp_name'] ) ) {
+			wp_send_json_error( array( 'message' => __( 'No file uploaded.', 'processflow-manager' ) ) );
+		}
+
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		$tmp_path = $_FILES['csv_file']['tmp_name'];
+		if ( ! is_uploaded_file( $tmp_path ) ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid file upload.', 'processflow-manager' ) ) );
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+		$handle = fopen( $tmp_path, 'r' );
+		if ( ! $handle ) {
+			wp_send_json_error( array( 'message' => __( 'Could not read the uploaded file.', 'processflow-manager' ) ) );
+		}
+
+		// Read and validate header row.
+		$headers = fgetcsv( $handle );
+		if ( ! $headers ) {
+			fclose( $handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+			wp_send_json_error( array( 'message' => __( 'File is empty or not a valid CSV.', 'processflow-manager' ) ) );
+		}
+		$headers = array_map( 'strtolower', array_map( 'trim', $headers ) );
+		$required = array( 'customer_name', 'business_name', 'whatsapp', 'job_details' );
+		foreach ( $required as $col ) {
+			if ( ! in_array( $col, $headers, true ) ) {
+				fclose( $handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+				wp_send_json_error( array(
+					'message' => sprintf(
+						/* translators: %s = missing column name */
+						__( 'Missing required column: %s', 'processflow-manager' ),
+						$col
+					),
+				) );
+			}
+		}
+
+		// Build a stage name → ID lookup.
+		$all_stages = $this->db->get_stages();
+		$stage_map  = array();
+		foreach ( $all_stages as $s ) {
+			$stage_map[ strtolower( $s->name ) ] = (int) $s->id;
+		}
+
+		$created = 0;
+		$skipped = 0;
+		$row_num = 1;
+
+		while ( ( $row = fgetcsv( $handle ) ) !== false ) {
+			$row_num++;
+			$row_data = array_combine( $headers, array_pad( $row, count( $headers ), '' ) );
+
+			$customer_name = sanitize_text_field( trim( $row_data['customer_name'] ?? '' ) );
+			if ( empty( $customer_name ) ) {
+				$skipped++;
+				continue;
+			}
+
+			$stage_name  = strtolower( trim( $row_data['stage_name'] ?? '' ) );
+			$stage_id    = isset( $stage_map[ $stage_name ] ) ? $stage_map[ $stage_name ] : null;
+
+			$result = $this->db->create_order( array(
+				'customer_name' => $customer_name,
+				'business_name' => sanitize_text_field( trim( $row_data['business_name'] ?? '' ) ),
+				'whatsapp'      => sanitize_text_field( trim( $row_data['whatsapp'] ?? '' ) ),
+				'job_details'   => sanitize_textarea_field( trim( $row_data['job_details'] ?? '' ) ),
+				'current_stage' => $stage_id,
+			) );
+
+			is_wp_error( $result ) ? $skipped++ : $created++;
+		}
+
+		fclose( $handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+
+		wp_send_json_success( array(
+			'message' => sprintf(
+				/* translators: 1: created count, 2: skipped count */
+				__( 'Import complete: %1$d orders created, %2$d rows skipped.', 'processflow-manager' ),
+				$created,
+				$skipped
+			),
+			'created' => $created,
+			'skipped' => $skipped,
+		) );
+	}
+
+	// ------------------------------------------------------------------ //
 	// Shortcode – front-end admin dashboard                               //
 	// ------------------------------------------------------------------ //
 
@@ -564,19 +891,42 @@ class ProcessFlow_Admin {
 			return;
 		}
 
-		$password = isset( $_POST['processflow_password'] ) ? sanitize_text_field( wp_unslash( $_POST['processflow_password'] ) ) : '';
+		$username = isset( $_POST['processflow_username'] ) ? sanitize_user( wp_unslash( $_POST['processflow_username'] ) ) : '';
+		$password = isset( $_POST['processflow_password'] ) ? wp_unslash( $_POST['processflow_password'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
 
+		$role = 'admin';
+
+		// First: try processflow_users table if username supplied.
+		if ( ! empty( $username ) ) {
+			$pf_user = $this->db->get_pf_user_by_username( $username );
+			if ( $pf_user && wp_check_password( $password, $pf_user->password_hash ) ) {
+				$role = $pf_user->role;
+				$this->set_shortcode_session( $role );
+				$this->render_shortcode_dashboard();
+				return;
+			}
+		}
+
+		// Fallback: legacy single-password mode (any username or blank).
 		if ( $this->settings->verify_admin_password( $password ) ) {
-			$token = wp_generate_password( 32, false );
-			set_transient( 'processflow_admin_session_' . $token, 1, HOUR_IN_SECONDS * 4 );
-			// Store token in a cookie.
-			setcookie( 'pf_admin_token', $token, time() + HOUR_IN_SECONDS * 4, COOKIEPATH, COOKIE_DOMAIN, is_ssl(), true );
-			$_COOKIE['pf_admin_token'] = $token;
+			$this->set_shortcode_session( 'admin' );
 			$this->render_shortcode_dashboard();
 		} else {
-			echo '<p class="pf-error">' . esc_html__( 'Incorrect password.', 'processflow-manager' ) . '</p>';
+			echo '<p class="pf-error">' . esc_html__( 'Incorrect username or password.', 'processflow-manager' ) . '</p>';
 			require_once PROCESSFLOW_PLUGIN_DIR . 'templates/admin-dashboard.php';
 		}
+	}
+
+	/**
+	 * Store a new shortcode session token in a transient + cookie.
+	 *
+	 * @param string $role 'admin' or 'operator'.
+	 */
+	private function set_shortcode_session( string $role ) {
+		$token = wp_generate_password( 32, false );
+		set_transient( 'processflow_admin_session_' . $token, array( 'role' => $role ), HOUR_IN_SECONDS * 4 );
+		setcookie( 'pf_admin_token', $token, time() + HOUR_IN_SECONDS * 4, COOKIEPATH, COOKIE_DOMAIN, is_ssl(), true );
+		$_COOKIE['pf_admin_token'] = $token;
 	}
 
 	/**
@@ -588,8 +938,9 @@ class ProcessFlow_Admin {
 		$qr_engine     = $this->qr_engine;
 		$whatsapp      = $this->whatsapp;
 		$settings      = $this->settings;
+		$session_role  = $this->get_session_role();
 
-		require_once PROCESSFLOW_PLUGIN_DIR . 'admin/partials/dashboard.php';
+		require_once PROCESSFLOW_PLUGIN_DIR . 'templates/frontend-admin.php';
 	}
 
 	/**
@@ -606,5 +957,28 @@ class ProcessFlow_Admin {
 			return false;
 		}
 		return (bool) get_transient( 'processflow_admin_session_' . $token );
+	}
+
+	/**
+	 * Return the role stored in the current session ('admin' or 'operator').
+	 *
+	 * Falls back to 'admin' for WP admins and legacy sessions.
+	 *
+	 * @return string
+	 */
+	private function get_session_role(): string {
+		if ( current_user_can( 'manage_options' ) ) {
+			return 'admin';
+		}
+		$token = isset( $_COOKIE['pf_admin_token'] ) ? sanitize_text_field( wp_unslash( $_COOKIE['pf_admin_token'] ) ) : '';
+		if ( empty( $token ) ) {
+			return 'operator';
+		}
+		$session = get_transient( 'processflow_admin_session_' . $token );
+		if ( is_array( $session ) && isset( $session['role'] ) ) {
+			return $session['role'];
+		}
+		// Legacy sessions (stored as 1) are treated as admin.
+		return $session ? 'admin' : 'operator';
 	}
 }

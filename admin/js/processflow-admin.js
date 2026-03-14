@@ -417,3 +417,297 @@
 
 	$(document).ready(() => PF.init());
 }(jQuery));
+
+// ================================================================
+// FRONTEND ADMIN EXTENSIONS
+// (Users, CSV Import, Invoice Ninja, frontend tab switching)
+// ================================================================
+(function ($) {
+'use strict';
+
+const PFExt = {
+
+init() {
+this.bindFrontendTabs();
+this.bindUserActions();
+this.bindCsvImport();
+this.bindInvoiceNinja();
+this.bindDashboardButtons();
+},
+
+post(action, data) {
+return $.post(window.processflowAdmin ? processflowAdmin.ajax_url : ajaxurl, {
+action,
+nonce: window.processflowAdmin ? processflowAdmin.processflow_ajax_nonce : '',
+...data,
+});
+},
+
+notice(msg, type, container) {
+container = container || '#pf-notice-area';
+const $area = $(container);
+if (!$area.length) return;
+$area.html(`<div class="pf-notice pf-notice--${type || 'success'}">${msg}</div>`);
+setTimeout(() => $area.find('.pf-notice').fadeOut(400, function () { $(this).remove(); }), 5000);
+},
+
+// ----------------------------------------------------------
+// Frontend tabs
+// ----------------------------------------------------------
+bindFrontendTabs() {
+$(document).on('click', '.pf-fnav__tab', function () {
+const tab = $(this).data('tab');
+$('.pf-fnav__tab').removeClass('active');
+$(this).addClass('active');
+$('.pf-ftab').removeClass('active');
+$('#pf-tab-' + tab).addClass('active');
+});
+
+// Switch tab buttons inside content (e.g. Dashboard "Add Order")
+$(document).on('click', '.pf-switch-tab', function (e) {
+e.preventDefault();
+const tab = $(this).data('tab');
+$('.pf-fnav__tab').removeClass('active');
+$('.pf-fnav__tab[data-tab="' + tab + '"]').addClass('active');
+$('.pf-ftab').removeClass('active');
+$('#pf-tab-' + tab).addClass('active');
+// Also trigger add-order modal if arriving at orders from dashboard button
+if (tab === 'orders' && $(this).is('#pf-dash-btn-add-order')) {
+$('#pf-btn-add-order').trigger('click');
+}
+});
+},
+
+// ----------------------------------------------------------
+// Dashboard action buttons
+// ----------------------------------------------------------
+bindDashboardButtons() {
+// Dashboard "Add Order" button
+$(document).on('click', '#pf-dash-btn-add-order', function () {
+$('.pf-fnav__tab').removeClass('active');
+$('.pf-fnav__tab[data-tab="orders"]').addClass('active');
+$('.pf-ftab').removeClass('active');
+$('#pf-tab-orders').addClass('active');
+setTimeout(() => $('#pf-btn-add-order').trigger('click'), 100);
+});
+},
+
+// ----------------------------------------------------------
+// Users management
+// ----------------------------------------------------------
+bindUserActions() {
+// Add user button
+$(document).on('click', '#pf-btn-add-user', () => {
+this.openUserModal(null);
+});
+
+// Edit user
+$(document).on('click', '.pf-edit-user', (e) => {
+const $btn = $(e.currentTarget);
+this.openUserModal({
+id:        $btn.data('id'),
+username:  $btn.data('username'),
+email:     $btn.data('email'),
+role:      $btn.data('role'),
+is_active: $btn.data('is-active'),
+});
+});
+
+// Delete user
+$(document).on('click', '.pf-delete-user', (e) => {
+if (!confirm(window.processflowAdmin ? processflowAdmin.confirm_delete : 'Delete this user?')) return;
+const id = $(e.currentTarget).data('id');
+this.post('processflow_delete_pf_user', { user_id: id }).done((res) => {
+if (res.success) {
+$('#pf-user-row-' + id).remove();
+this.notice(res.data.message, 'success');
+} else {
+this.notice(res.data.message, 'error');
+}
+});
+});
+
+// Submit user form
+$(document).on('submit', '#pf-user-form', (e) => {
+e.preventDefault();
+const $form  = $(e.currentTarget);
+const userId = $form.data('user-id');
+const action = userId ? 'processflow_update_pf_user' : 'processflow_create_pf_user';
+const data   = {
+username:  $form.find('[name="username"]').val(),
+email:     $form.find('[name="email"]').val(),
+password:  $form.find('[name="password"]').val(),
+role:      $form.find('[name="role"]').val(),
+is_active: $form.find('[name="is_active"]').is(':checked') ? 1 : 0,
+};
+if (userId) data.user_id = userId;
+
+const $btn = $form.find('[type="submit"]').prop('disabled', true);
+this.post(action, data).done((res) => {
+if (res.success) {
+this.notice(res.data.message, 'success');
+if (window.PFAdmin) PFAdmin.closeModal();
+location.reload();
+} else {
+this.notice(res.data.message, 'error', '#pf-user-modal-notice');
+}
+}).always(() => $btn.prop('disabled', false));
+});
+},
+
+openUserModal(user) {
+const isEdit = !!user;
+const html = `
+<div class="pf-modal">
+<div class="pf-modal__header">
+<h3 class="pf-modal__title">${isEdit ? 'Edit User' : 'Add User'}</h3>
+<button class="pf-modal__close" onclick="PFAdmin.closeModal()">&times;</button>
+</div>
+<div class="pf-modal__body">
+<div id="pf-user-modal-notice"></div>
+<form id="pf-user-form" ${isEdit ? `data-user-id="${user.id}"` : ''}>
+<div class="pf-form-group">
+<label>Username *</label>
+<input type="text" name="username" value="${isEdit ? user.username : ''}" required>
+</div>
+<div class="pf-form-group">
+<label>Email</label>
+<input type="email" name="email" value="${isEdit ? user.email : ''}">
+</div>
+<div class="pf-form-group">
+<label>Password ${isEdit ? '(leave blank to keep current)' : '*'}</label>
+<input type="password" name="password" ${!isEdit ? 'required' : ''} autocomplete="new-password">
+</div>
+<div class="pf-form-group">
+<label>Role</label>
+<select name="role">
+<option value="operator" ${isEdit && user.role === 'operator' ? 'selected' : ''}>Operator</option>
+<option value="admin" ${isEdit && user.role === 'admin' ? 'selected' : ''}>Admin</option>
+</select>
+</div>
+<div class="pf-form-group">
+<label>
+<input type="checkbox" name="is_active" value="1" ${!isEdit || user.is_active ? 'checked' : ''}>
+Active
+</label>
+</div>
+</form>
+</div>
+<div class="pf-modal__footer">
+<button class="pf-btn pf-btn--outline" onclick="PFAdmin.closeModal()">Cancel</button>
+<button class="pf-btn pf-btn--primary" onclick="$('#pf-user-form').submit()">${isEdit ? 'Update User' : 'Create User'}</button>
+</div>
+</div>`;
+
+if (window.PFAdmin) PFAdmin.openModal(html);
+},
+
+// ----------------------------------------------------------
+// CSV Import
+// ----------------------------------------------------------
+bindCsvImport() {
+// File name display
+$(document).on('change', '#pf-csv-file', function () {
+const name = this.files[0] ? this.files[0].name : 'No file selected';
+$('#pf-file-name').text(name);
+});
+
+// Drag-over styling
+$(document).on('dragover', '#pf-file-drop', function (e) {
+e.preventDefault();
+$(this).addClass('drag-over');
+});
+$(document).on('dragleave drop', '#pf-file-drop', function () {
+$(this).removeClass('drag-over');
+});
+
+// Import form submit
+$(document).on('submit', '#pf-import-csv-form', (e) => {
+e.preventDefault();
+const $form   = $(e.currentTarget);
+const fileInput = document.getElementById('pf-csv-file');
+if (!fileInput || !fileInput.files[0]) {
+this.notice('Please select a CSV file.', 'error', '#pf-import-notice');
+return;
+}
+
+const formData = new FormData();
+formData.append('action', 'processflow_import_csv');
+formData.append('nonce', processflowAdmin.processflow_ajax_nonce);
+formData.append('csv_file', fileInput.files[0]);
+
+const $btn = $('#pf-import-submit').prop('disabled', true).text('Importing…');
+$('#pf-import-result').hide();
+
+$.ajax({
+url:         processflowAdmin.ajax_url,
+type:        'POST',
+data:        formData,
+processData: false,
+contentType: false,
+}).done((res) => {
+if (res.success) {
+$('#pf-import-result').show().html(
+`<div class="pf-notice pf-notice--success">${res.data.message}</div>`
+);
+$form[0].reset();
+$('#pf-file-name').text('No file selected');
+} else {
+$('#pf-import-result').show().html(
+`<div class="pf-notice pf-notice--error">${res.data.message}</div>`
+);
+}
+}).fail(() => {
+$('#pf-import-result').show().html(
+'<div class="pf-notice pf-notice--error">Upload failed. Please try again.</div>'
+);
+}).always(() => {
+$btn.prop('disabled', false).text('⬆ Import Orders');
+});
+});
+
+// Download CSV template
+$(document).on('click', '#pf-btn-csv-template', () => {
+const url = processflowAdmin.ajax_url +
+'?action=processflow_csv_template' +
+'&nonce=' + processflowAdmin.processflow_ajax_nonce;
+const a = document.createElement('a');
+a.href = url;
+a.download = 'processflow-import-template.csv';
+document.body.appendChild(a);
+a.click();
+document.body.removeChild(a);
+});
+},
+
+// ----------------------------------------------------------
+// Invoice Ninja Sync
+// ----------------------------------------------------------
+bindInvoiceNinja() {
+$(document).on('click', '#pf-btn-sync-ninja', (e) => {
+e.preventDefault();
+const $btn = $(e.currentTarget).prop('disabled', true).text('Syncing…');
+$('#pf-in-sync-result').hide();
+this.post('processflow_sync_invoice_ninja', {}).done((res) => {
+if (res.success) {
+$('#pf-in-sync-result').show().html(
+`<div class="pf-notice pf-notice--success">${res.data.message}</div>`
+);
+} else {
+$('#pf-in-sync-result').show().html(
+`<div class="pf-notice pf-notice--error">${res.data.message}</div>`
+);
+}
+}).fail(() => {
+$('#pf-in-sync-result').show().html(
+'<div class="pf-notice pf-notice--error">Sync failed. Check your connection settings.</div>'
+);
+}).always(() => {
+$btn.prop('disabled', false).text('↺ Sync Now');
+});
+});
+},
+};
+
+$(document).ready(() => PFExt.init());
+}(jQuery));

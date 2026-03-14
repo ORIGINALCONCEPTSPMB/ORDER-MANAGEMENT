@@ -504,4 +504,161 @@ class ProcessFlow_Database {
 
 		return false !== $result;
 	}
+
+	// ------------------------------------------------------------------ //
+	// ProcessFlow Platform Users                                           //
+	// ------------------------------------------------------------------ //
+
+	/**
+	 * Create a new platform user.
+	 *
+	 * @param array $data { username, email, password (plain-text), role }
+	 * @return int|WP_Error New user ID or error.
+	 */
+	public function create_pf_user( array $data ) {
+		global $wpdb;
+
+		if ( empty( $data['username'] ) || empty( $data['password'] ) ) {
+			return new WP_Error( 'missing_data', __( 'Username and password are required.', 'processflow-manager' ) );
+		}
+
+		// Check for duplicate username.
+		$exists = $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+			"SELECT id FROM {$wpdb->prefix}processflow_users WHERE username = %s",
+			sanitize_user( $data['username'] )
+		) );
+		if ( $exists ) {
+			return new WP_Error( 'duplicate_username', __( 'Username already exists.', 'processflow-manager' ) );
+		}
+
+		$inserted = $wpdb->insert( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+			$wpdb->prefix . 'processflow_users',
+			array(
+				'username'      => sanitize_user( $data['username'] ),
+				'email'         => sanitize_email( $data['email'] ?? '' ),
+				'password_hash' => wp_hash_password( $data['password'] ),
+				'role'          => in_array( $data['role'] ?? 'operator', array( 'admin', 'operator' ), true ) ? $data['role'] : 'operator',
+				'is_active'     => isset( $data['is_active'] ) ? (int) $data['is_active'] : 1,
+				'created_at'    => current_time( 'mysql' ),
+			),
+			array( '%s', '%s', '%s', '%s', '%d', '%s' )
+		);
+
+		if ( ! $inserted ) {
+			return new WP_Error( 'db_error', __( 'Failed to create user.', 'processflow-manager' ) );
+		}
+
+		return (int) $wpdb->insert_id;
+	}
+
+	/**
+	 * Get all platform users.
+	 *
+	 * @return object[]
+	 */
+	public function get_pf_users(): array {
+		global $wpdb;
+
+		return $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+			"SELECT id, username, email, role, is_active, created_at FROM {$wpdb->prefix}processflow_users ORDER BY created_at DESC"
+		) ?: array();
+	}
+
+	/**
+	 * Get a single platform user by ID.
+	 *
+	 * @param int $id User ID.
+	 * @return object|null
+	 */
+	public function get_pf_user( int $id ) {
+		global $wpdb;
+
+		return $wpdb->get_row( $wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+			"SELECT id, username, email, role, is_active, created_at FROM {$wpdb->prefix}processflow_users WHERE id = %d",
+			$id
+		) );
+	}
+
+	/**
+	 * Find a platform user by username (includes password_hash for auth).
+	 *
+	 * @param string $username Username to look up.
+	 * @return object|null
+	 */
+	public function get_pf_user_by_username( string $username ) {
+		global $wpdb;
+
+		return $wpdb->get_row( $wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+			"SELECT * FROM {$wpdb->prefix}processflow_users WHERE username = %s AND is_active = 1",
+			sanitize_user( $username )
+		) );
+	}
+
+	/**
+	 * Update an existing platform user.
+	 *
+	 * @param int   $id   User ID.
+	 * @param array $data Fields to update (username, email, password, role, is_active).
+	 * @return bool|WP_Error
+	 */
+	public function update_pf_user( int $id, array $data ) {
+		global $wpdb;
+
+		$clean = array();
+
+		if ( isset( $data['username'] ) ) {
+			// Check duplicate username (excluding this user).
+			$exists = $wpdb->get_var( $wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+				"SELECT id FROM {$wpdb->prefix}processflow_users WHERE username = %s AND id != %d",
+				sanitize_user( $data['username'] ),
+				$id
+			) );
+			if ( $exists ) {
+				return new WP_Error( 'duplicate_username', __( 'Username already exists.', 'processflow-manager' ) );
+			}
+			$clean['username'] = sanitize_user( $data['username'] );
+		}
+		if ( isset( $data['email'] ) ) {
+			$clean['email'] = sanitize_email( $data['email'] );
+		}
+		if ( ! empty( $data['password'] ) ) {
+			$clean['password_hash'] = wp_hash_password( $data['password'] );
+		}
+		if ( isset( $data['role'] ) ) {
+			$clean['role'] = in_array( $data['role'], array( 'admin', 'operator' ), true ) ? $data['role'] : 'operator';
+		}
+		if ( isset( $data['is_active'] ) ) {
+			$clean['is_active'] = (int) $data['is_active'];
+		}
+
+		if ( empty( $clean ) ) {
+			return false;
+		}
+
+		$result = $wpdb->update( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+			$wpdb->prefix . 'processflow_users',
+			$clean,
+			array( 'id' => $id )
+		);
+
+		return false !== $result;
+	}
+
+	/**
+	 * Delete a platform user.
+	 *
+	 * @param int $id User ID.
+	 * @return bool
+	 */
+	public function delete_pf_user( int $id ): bool {
+		global $wpdb;
+
+		$result = $wpdb->delete( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+			$wpdb->prefix . 'processflow_users',
+			array( 'id' => $id ),
+			array( '%d' )
+		);
+
+		return false !== $result;
+	}
 }

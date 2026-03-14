@@ -447,3 +447,314 @@
 @media (max-width: 480px) {
   .pf-stats { grid-template-columns: 1fr 1fr; }
 }
+
+/* ================================================================
+   Frontend Admin – Login Form
+   ================================================================ */
+.pf-login-wrap {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: linear-gradient(135deg, #f0f4f8 0%, #e8eef5 100%);
+}
+.pf-login-card {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.12), 0 2px 8px rgba(0,0,0,.06);
+  padding: 48px 40px 40px;
+  width: 100%;
+  max-width: 420px;
+  text-align: center;
+}
+.pf-login-logo {
+  margin-bottom: 16px;
+}
+.pf-login-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1a2332;
+  margin: 0 0 6px;
+  letter-spacing: -.3px;
+}
+.pf-login-subtitle {
+  font-size: 14px;
+  color: #6b7a90;
+  margin: 0 0 32px;
+}
+.pf-login-form {
+  text-align: left;
+}
+.pf-login-field {
+  margin-bottom: 18px;
+}
+.pf-login-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 6px;
+}
+.pf-login-input {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1.5px solid #d1d9e0;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #1a2332;
+  background: #f9fafb;
+  box-sizing: border-box;
+  transition: border-color .2s, box-shadow .2s;
+  outline: none;
+}
+.pf-login-input:focus {
+  border-color: var(--pf-primary);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(34,113,177,.12);
+}
+.pf-login-btn {
+  width: 100%;
+  padding: 12px 20px;
+  background: linear-gradient(135deg, #2271b1, #135e96);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: opacity .2s, transform .1s;
+  margin-top: 8px;
+}
+.pf-login-btn:hover {
+  opacity: .93;
+  transform: translateY(-1px);
+}
+.pf-error {
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  color: #dc2626;
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+/* ================================================================
+   Frontend Admin – Wrapper & Header
+   ================================================================ */
+.pf-frontend-wrap {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: var(--pf-text);
+  background: #f0f2f5;
+  min-height: 100vh;
+}
+.pf-frontend-header {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background: linear-gradient(90deg, #1a2e4a 0%, #2271b1 100%);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.2);
+  height: 56px;
+}
+.pf-frontend-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  margin-right: 16px;
+  flex-shrink: 0;
+}
+.pf-frontend-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  overflow-x: auto;
+  flex: 1;
+  scrollbar-width: none;
+}
+.pf-frontend-nav::-webkit-scrollbar { display: none; }
+.pf-fnav__tab {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: rgba(255,255,255,.75);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s, color .15s;
+}
+.pf-fnav__tab:hover {
+  background: rgba(255,255,255,.12);
+  color: #fff;
+}
+.pf-fnav__tab.active {
+  background: rgba(255,255,255,.18);
+  color: #fff;
+  font-weight: 600;
+}
+.pf-frontend-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+.pf-session-role {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+.pf-session-role--admin  { background: rgba(39,174,96,.3); color: #a7f3c2; }
+.pf-session-role--operator { background: rgba(230,126,34,.3); color: #fcd6a1; }
+
+/* ================================================================
+   Frontend Admin – Main / Tabs
+   ================================================================ */
+.pf-frontend-main {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 24px 20px;
+}
+.pf-ftab {
+  display: none;
+}
+.pf-ftab.active {
+  display: block;
+}
+.pf-ftab__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+.pf-ftab__header h2 {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0;
+  color: #1a2332;
+}
+
+/* ================================================================
+   Users table – role badges
+   ================================================================ */
+.pf-badge--role-admin    { background: #2271b1; }
+.pf-badge--role-operator { background: #e67e22; }
+
+/* ================================================================
+   Invoice Ninja status indicators
+   ================================================================ */
+.pf-in-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+.pf-in-status--connected    { background: #d1fae5; color: #065f46; }
+.pf-in-status--disconnected { background: #fef3c7; color: #92400e; }
+
+/* ================================================================
+   CSV Import – File Drop Zone
+   ================================================================ */
+.pf-file-drop {
+  position: relative;
+  border: 2px dashed var(--pf-border);
+  border-radius: 10px;
+  background: #f9fafb;
+  padding: 32px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .2s, background .2s;
+}
+.pf-file-drop:hover,
+.pf-file-drop.drag-over {
+  border-color: var(--pf-primary);
+  background: #eff6ff;
+}
+.pf-file-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+}
+.pf-file-drop__text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--pf-muted);
+  pointer-events: none;
+}
+.pf-file-drop__text svg {
+  color: var(--pf-primary);
+  opacity: .6;
+}
+
+/* ================================================================
+   CSV template columns preview
+   ================================================================ */
+.pf-template-cols {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.pf-template-col-item {
+  background: #f0f4f8;
+  border: 1px solid #d1d9e0;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+}
+.pf-template-col-item--optional {
+  background: #fef9ec;
+  border-color: #fde68a;
+}
+.pf-template-col-item--optional span {
+  color: #92400e;
+  font-style: italic;
+  margin-left: 4px;
+}
+
+/* ================================================================
+   Responsive – Frontend admin
+   ================================================================ */
+@media (max-width: 900px) {
+  .pf-frontend-header { height: auto; flex-wrap: wrap; padding: 10px 16px; gap: 8px; }
+  .pf-frontend-nav { order: 3; width: 100%; }
+  .pf-ftab__header { flex-direction: column; align-items: flex-start; gap: 10px; }
+  section[id^="pf-tab-"] > div[style*="grid"] { display: block !important; }
+  section[id^="pf-tab-"] > div[style*="grid"] > * { margin-bottom: 20px; }
+}
+@media (max-width: 600px) {
+  .pf-login-card { padding: 32px 20px 28px; }
+  .pf-frontend-main { padding: 16px 12px; }
+  .pf-fnav__tab { padding: 6px 8px; font-size: 12px; }
+}

@@ -86,10 +86,27 @@ class ProcessFlow_Activator {
 			PRIMARY KEY  (id)
 		) $charset_collate;";
 
+		// ------------------------------------------------------------------ //
+		// Platform users table                                               //
+		// ------------------------------------------------------------------ //
+		$sql_users = "CREATE TABLE {$wpdb->prefix}processflow_users (
+			id            BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			username      VARCHAR(100)        NOT NULL DEFAULT '',
+			email         VARCHAR(255)        NOT NULL DEFAULT '',
+			password_hash VARCHAR(255)        NOT NULL DEFAULT '',
+			role          VARCHAR(20)         NOT NULL DEFAULT 'operator',
+			is_active     TINYINT(1)          NOT NULL DEFAULT 1,
+			created_at    DATETIME            NOT NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY username (username),
+			KEY role (role)
+		) $charset_collate;";
+
 		dbDelta( $sql_orders );
 		dbDelta( $sql_stages );
 		dbDelta( $sql_history );
 		dbDelta( $sql_custom_fields );
+		dbDelta( $sql_users );
 
 		// Seed default stages only when the table is freshly created.
 		$existing = $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}processflow_stages" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
