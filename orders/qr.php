@@ -5,7 +5,12 @@ require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/functions.php';
 
 $hash = trim($_GET['hash'] ?? '');
-$db   = getDb();
+// The QR hash (32 hex chars = 128-bit entropy) serves as the access token.
+// Validate it looks like a valid hex hash before querying.
+if (!preg_match('/^[0-9a-f]{32}$/i', $hash)) {
+    $hash = '';
+}
+$db = getDb();
 
 $stmt = $db->prepare(
     'SELECT o.*, s.name AS stage_name, s.color AS stage_color, s.whatsapp_template

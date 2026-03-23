@@ -197,7 +197,10 @@ function generateQrHash(): string {
 }
 
 /**
- * Get Google Charts QR code image URL for a hash
+ * Get QR code image URL for a hash.
+ * Uses Google Charts API by default. Note: the QR scan URL is sent to Google's
+ * servers for image generation. If privacy is a concern, install a server-side
+ * QR library (e.g. endroid/qr-code via Composer) and override this function.
  */
 function getQrImageUrl(string $hash, int $size = 150): string {
     $url = rtrim(APP_URL, '/') . '/orders/qr.php?hash=' . $hash;

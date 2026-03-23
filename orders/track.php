@@ -9,49 +9,65 @@ $portalTitle = getSetting('portal_title', 'Track Your Order');
 $portalIntro = getSetting('portal_intro', 'Enter your order ID and the last 4 digits of your WhatsApp number to track your order.');
 $pageTitle   = $portalTitle;
 
-$order    = null;
-$history  = [];
+$order     = null;
+$history   = [];
 $allStages = [];
-$error    = '';
+$error     = '';
+
+// Simple session-based rate limiting: max 10 lookup attempts per 15 minutes
+$rateKey = 'track_attempts';
+if (empty($_SESSION[$rateKey])) {
+    $_SESSION[$rateKey] = ['count' => 0, 'window_start' => time()];
+}
+if ((time() - $_SESSION[$rateKey]['window_start']) > 900) {
+    $_SESSION[$rateKey] = ['count' => 0, 'window_start' => time()];
+}
+$rateLimited = $_SESSION[$rateKey]['count'] >= 10;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $orderId  = (int)($_POST['order_id'] ?? 0);
-    $wa4      = trim($_POST['wa_last4'] ?? '');
-
-    if (!$orderId || strlen($wa4) !== 4) {
-        $error = 'Please enter a valid Order ID and 4-digit WhatsApp number.';
+    if ($rateLimited) {
+        $error = 'Too many lookup attempts. Please wait a few minutes before trying again.';
     } else {
-        $stmt = $db->prepare(
-            'SELECT o.*, s.name AS stage_name, s.color AS stage_color
-             FROM pf_orders o
-             LEFT JOIN pf_stages s ON o.current_stage = s.id
-             WHERE o.id = ? LIMIT 1'
-        );
-        $stmt->execute([$orderId]);
-        $found = $stmt->fetch();
+        $_SESSION[$rateKey]['count']++;
 
-        if (!$found) {
-            $error = 'Order not found or details do not match.';
+        $orderId = (int)($_POST['order_id'] ?? 0);
+        $wa4     = trim($_POST['wa_last4'] ?? '');
+
+        if (!$orderId || strlen($wa4) !== 4) {
+            $error = 'Please enter a valid Order ID and 4-digit WhatsApp number.';
         } else {
-            // Validate last 4 digits of whatsapp
-            $storedDigits = preg_replace('/\D/', '', $found['whatsapp'] ?? '');
-            $last4        = substr($storedDigits, -4);
-            if ($last4 === '' || $last4 !== $wa4) {
+            $stmt = $db->prepare(
+                'SELECT o.*, s.name AS stage_name, s.color AS stage_color
+                 FROM pf_orders o
+                 LEFT JOIN pf_stages s ON o.current_stage = s.id
+                 WHERE o.id = ? LIMIT 1'
+            );
+            $stmt->execute([$orderId]);
+            $found = $stmt->fetch();
+
+            if (!$found) {
                 $error = 'Order not found or details do not match.';
             } else {
-                $order = $found;
+                // Validate last 4 digits of whatsapp
+                $storedDigits = preg_replace('/\D/', '', $found['whatsapp'] ?? '');
+                $last4        = substr($storedDigits, -4);
+                if ($last4 === '' || $last4 !== $wa4) {
+                    $error = 'Order not found or details do not match.';
+                } else {
+                    $order = $found;
 
-                $allStages = $db->query('SELECT * FROM pf_stages WHERE is_active=1 ORDER BY order_position ASC')->fetchAll();
+                    $allStages = $db->query('SELECT * FROM pf_stages WHERE is_active=1 ORDER BY order_position ASC')->fetchAll();
 
-                $histStmt = $db->prepare(
-                    'SELECT sh.*, s.name AS stage_name, s.color
-                     FROM pf_stage_history sh
-                     JOIN pf_stages s ON sh.stage_id = s.id
-                     WHERE sh.order_id = ?
-                     ORDER BY sh.entered_at DESC'
-                );
-                $histStmt->execute([$orderId]);
-                $history = $histStmt->fetchAll();
+                    $histStmt = $db->prepare(
+                        'SELECT sh.*, s.name AS stage_name, s.color
+                         FROM pf_stage_history sh
+                         JOIN pf_stages s ON sh.stage_id = s.id
+                         WHERE sh.order_id = ?
+                         ORDER BY sh.entered_at DESC'
+                    );
+                    $histStmt->execute([$orderId]);
+                    $history = $histStmt->fetchAll();
+                }
             }
         }
     }
