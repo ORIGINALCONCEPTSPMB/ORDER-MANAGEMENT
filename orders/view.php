@@ -268,7 +268,7 @@ include __DIR__ . '/../includes/header.php';
             <div class="card-header"><h2 class="card-title">QR Code</h2></div>
             <div class="card-body" style="text-align:center;">
                 <div id="qr-container" style="display:inline-block;margin-bottom:10px;"></div>
-                <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" integrity="sha512-CNgIRecGo7nphbeZ04Sc13ka07paqdeTu0WR1IM4kNcpmBAUSHSE1QMQ/Ty/0CXDG3azSAEMsAToFMLIAM30g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+                <script src="<?= rtrim(APP_URL, '/') ?>/assets/js/qrcode.min.js"></script>
                 <script>
                 (function(){
                     var qrUrl = <?= json_encode(getQrScanUrl($order['qr_code_hash'])) ?>;
@@ -283,43 +283,60 @@ include __DIR__ . '/../includes/header.php';
                 <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
                     <a href="<?= rtrim(APP_URL, '/') ?>/orders/qr.php?hash=<?= htmlspecialchars($order['qr_code_hash']) ?>"
                        target="_blank" class="btn btn-secondary btn-sm">Open QR Page</a>
-                    <button onclick="printQrLabel(<?= $id ?>, <?= json_encode($order['customer_name']) ?>, <?= json_encode($order['invoice_number'] ?: '') ?>, <?= json_encode(getQrScanUrl($order['qr_code_hash'])) ?>)"
+                    <button onclick="printQrLabel(<?= $id ?>, <?= json_encode($order['customer_name']) ?>, <?= json_encode($order['invoice_number'] ?: '') ?>)"
                             class="btn btn-secondary btn-sm">&#x1F5A8; Print Label</button>
-                    <button onclick="downloadQrPdf(<?= $id ?>, <?= json_encode($order['customer_name']) ?>, <?= json_encode($order['invoice_number'] ?: '') ?>, <?= json_encode(getQrScanUrl($order['qr_code_hash'])) ?>)"
+                    <button onclick="downloadQrPdf(<?= $id ?>, <?= json_encode($order['customer_name']) ?>, <?= json_encode($order['invoice_number'] ?: '') ?>)"
                             class="btn btn-secondary btn-sm">&#8659; Download PDF</button>
                 </div>
             </div>
         </div>
 <script>
-function buildLabelHtml(orderId, customerName, invoiceNumber, qrUrl) {
+/* Extract the already-rendered QR code canvas as a PNG data URL so that
+   the print/PDF popup has zero external dependencies. */
+function getQrDataUrl() {
+    var container = document.getElementById('qr-container');
+    if (!container) return null;
+    var canvas = container.querySelector('canvas');
+    if (canvas) return canvas.toDataURL('image/png');
+    var img = container.querySelector('img');
+    if (img && img.src) return img.src;
+    return null;
+}
+function buildLabelHtml(orderId, customerName, invoiceNumber, qrDataUrl) {
+    var qrImgTag = qrDataUrl
+        ? '<img src="' + qrDataUrl + '" style="width:28mm;height:28mm;display:block;">'
+        : '<div style="width:28mm;height:28mm;background:#eee;line-height:28mm;text-align:center;font-size:7pt;">QR</div>';
+    var info = '<strong>Order #' + orderId + '</strong>'
+             + (invoiceNumber ? '<br>Inv: ' + invoiceNumber : '')
+             + '<br>' + customerName;
     return '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>QR Label</title>'
         + '<style>'
         + '@page{size:50mm 40mm;margin:0}'
-        + 'body{margin:0;padding:2mm;font-family:Arial,sans-serif;font-size:7pt;width:46mm;}'
+        + 'body{margin:0;padding:2mm;font-family:Arial,sans-serif;font-size:7pt;}'
         + '.lbl{display:flex;flex-direction:column;align-items:center;height:36mm;justify-content:space-between;}'
-        + '#lqr canvas,#lqr img{width:28mm!important;height:28mm!important;}'
-        + '.linfo{text-align:center;line-height:1.3;}'
+        + '.linfo{text-align:center;line-height:1.4;}'
         + '</style>'
-        + '<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" integrity="sha512-CNgIRecGo7nphbeZ04Sc13ka07paqdeTu0WR1IM4kNcpmBAUSHSE1QMQ/Ty/0CXDG3azSAEMsAToFMLIAM30g==" crossorigin="anonymous"><\/script>'
-        + '</head><body>'
-        + '<div class="lbl"><div id="lqr"></div>'
-        + '<div class="linfo"><strong>Order #' + orderId + '</strong>'
-        + (invoiceNumber ? '<br>Inv: ' + invoiceNumber : '')
-        + '<br>' + customerName + '</div></div>'
-        + '<script>new QRCode(document.getElementById("lqr"),{text:' + JSON.stringify(qrUrl) + ',width:106,height:106,correctLevel:QRCode.CorrectLevel.M});<\/script>'
+        + '</head>'
+        + '<body onload="setTimeout(function(){window.focus();window.print();},150);">'
+        + '<div class="lbl">'
+        + '<div>' + qrImgTag + '</div>'
+        + '<div class="linfo">' + info + '</div>'
+        + '</div>'
         + '</body></html>';
 }
-function printQrLabel(orderId, customerName, invoiceNumber, qrUrl) {
-    var w = window.open('', '_blank', 'width=300,height=260');
-    w.document.write(buildLabelHtml(orderId, customerName, invoiceNumber, qrUrl));
+function printQrLabel(orderId, customerName, invoiceNumber) {
+    var qrDataUrl = getQrDataUrl();
+    var w = window.open('', '_blank', 'width=420,height=380');
+    if (!w) { alert('Allow pop-ups for this site to print QR labels.'); return; }
+    w.document.write(buildLabelHtml(orderId, customerName, invoiceNumber, qrDataUrl));
     w.document.close();
-    w.onload = function(){ w.focus(); w.print(); };
 }
-function downloadQrPdf(orderId, customerName, invoiceNumber, qrUrl) {
-    var w = window.open('', '_blank', 'width=300,height=260');
-    w.document.write(buildLabelHtml(orderId, customerName, invoiceNumber, qrUrl));
+function downloadQrPdf(orderId, customerName, invoiceNumber) {
+    var qrDataUrl = getQrDataUrl();
+    var w = window.open('', '_blank', 'width=420,height=380');
+    if (!w) { alert('Allow pop-ups for this site to download the QR PDF.'); return; }
+    w.document.write(buildLabelHtml(orderId, customerName, invoiceNumber, qrDataUrl));
     w.document.close();
-    w.onload = function(){ w.focus(); w.print(); };
 }
 </script>
 

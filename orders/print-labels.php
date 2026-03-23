@@ -33,7 +33,7 @@ $companyName = getSetting('company_name', $appName);
 <head>
 <meta charset="UTF-8">
 <title>QR Labels &mdash; <?= htmlspecialchars($appName) ?></title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" integrity="sha512-CNgIRecGo7nphbeZ04Sc13ka07paqdeTu0WR1IM4kNcpmBAUSHSE1QMQ/Ty/0CXDG3azSAEMsAToFMLIAM30g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="<?= rtrim(APP_URL, '/') ?>/assets/js/qrcode.min.js"></script>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; padding: 8mm; font-family: Arial, sans-serif; background: #f5f5f5; }
