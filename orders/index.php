@@ -22,7 +22,13 @@ $db = getDb();
 $filterStatus   = $_GET['status']   ?? '';
 $filterPriority = $_GET['priority'] ?? '';
 $search         = trim($_GET['search'] ?? '');
-$allowedSortColumns = ['order_number' => 'o.order_number', 'customer_name' => 'o.customer_name', 'status' => 'o.status', 'priority' => 'o.priority', 'created_at' => 'o.created_at'];
+$allowedSortColumns = [
+    'order_number'  => 'o.order_number',
+    'customer_name' => 'o.customer_name',
+    'status'        => 'o.status',
+    'priority'      => 'o.priority',
+    'created_at'    => 'o.created_at',
+];
 $sortKey        = $_GET['sort'] ?? 'created_at';
 $sort           = array_key_exists($sortKey, $allowedSortColumns) ? $allowedSortColumns[$sortKey] : 'o.created_at';
 $dir            = (($_GET['dir'] ?? '') === 'asc') ? 'ASC' : 'DESC';

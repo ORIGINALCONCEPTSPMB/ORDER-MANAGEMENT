@@ -122,10 +122,13 @@ CREATE TABLE IF NOT EXISTS `password_resets` (
 
 -- --------------------------------------------------------
 -- Default super_admin user
--- Password: Admin@123!
--- NOTE: The installation wizard (install.php) overrides this hash with the
--- password you choose during setup. If you run this schema manually without
--- the wizard, change the default password immediately after first login.
+-- IMPORTANT SECURITY NOTICE:
+-- This row uses a known default password (Admin@123!) and is intended ONLY
+-- as a fallback when the schema is imported manually without the installation
+-- wizard. The installation wizard (install.php) always replaces this hash
+-- with the password you supply during setup.
+-- If you import this file directly, you MUST change the password on first
+-- login and update the email address to a real address you control.
 -- --------------------------------------------------------
 INSERT INTO `users` (`email`, `password_hash`, `role`, `first_name`, `last_name`, `is_active`, `is_verified`)
 VALUES (

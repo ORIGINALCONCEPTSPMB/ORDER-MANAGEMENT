@@ -111,7 +111,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($target && $target['role'] === 'super_admin' && !$isSuperAdmin) {
             setFlash('error', 'Only a super admin can reset a super admin password.');
         } elseif ($target) {
-            $tempPassword = 'T' . substr(bin2hex(random_bytes(4)), 0, 5) . random_int(10, 99) . '!@';
+            $tempPassword = bin2hex(random_bytes(6))
+                          . chr(random_int(65, 90))
+                          . random_int(10, 99)
+                          . '!';
             $hash = hashPassword($tempPassword);
             $db->prepare('UPDATE users SET password_hash=? WHERE id=?')->execute([$hash, $userId]);
 

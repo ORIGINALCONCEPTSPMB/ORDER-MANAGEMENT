@@ -186,7 +186,7 @@ class SimpleSMTP {
 function sendEmail(string $to, string $subject, string $htmlBody, string $textBody = ''): bool {
     $mailHost = defined('MAIL_HOST') ? MAIL_HOST : '';
 
-    if ($mailHost && !in_array($mailHost, ['localhost', '127.0.0.1', ''])) {
+    if ($mailHost && $mailHost !== '') {
         $smtp = new SimpleSMTP(
             MAIL_HOST,
             (int) MAIL_PORT,
