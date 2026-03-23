@@ -267,14 +267,61 @@ include __DIR__ . '/../includes/header.php';
         <div class="card" style="margin-bottom:20px;">
             <div class="card-header"><h2 class="card-title">QR Code</h2></div>
             <div class="card-body" style="text-align:center;">
-                <img src="<?= htmlspecialchars(getQrImageUrl($order['qr_code_hash'], 180)) ?>"
-                     alt="QR Code" style="max-width:180px;">
-                <div style="margin-top:10px;">
+                <div id="qr-container" style="display:inline-block;margin-bottom:10px;"></div>
+                <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" integrity="sha512-CNgIRecGo7nphbeZ04Sc13ka07paqdeTu0WR1IM4kNcpmBAUSHSE1QMQ/Ty/0CXDG3azSAEMsAToFMLIAM30g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+                <script>
+                (function(){
+                    var qrUrl = <?= json_encode(getQrScanUrl($order['qr_code_hash'])) ?>;
+                    new QRCode(document.getElementById('qr-container'), {
+                        text: qrUrl,
+                        width: 180,
+                        height: 180,
+                        correctLevel: QRCode.CorrectLevel.M
+                    });
+                })();
+                </script>
+                <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
                     <a href="<?= rtrim(APP_URL, '/') ?>/orders/qr.php?hash=<?= htmlspecialchars($order['qr_code_hash']) ?>"
                        target="_blank" class="btn btn-secondary btn-sm">Open QR Page</a>
+                    <button onclick="printQrLabel(<?= $id ?>, <?= json_encode($order['customer_name']) ?>, <?= json_encode($order['invoice_number'] ?: '') ?>, <?= json_encode(getQrScanUrl($order['qr_code_hash'])) ?>)"
+                            class="btn btn-secondary btn-sm">&#x1F5A8; Print Label</button>
+                    <button onclick="downloadQrPdf(<?= $id ?>, <?= json_encode($order['customer_name']) ?>, <?= json_encode($order['invoice_number'] ?: '') ?>, <?= json_encode(getQrScanUrl($order['qr_code_hash'])) ?>)"
+                            class="btn btn-secondary btn-sm">&#8659; Download PDF</button>
                 </div>
             </div>
         </div>
+<script>
+function buildLabelHtml(orderId, customerName, invoiceNumber, qrUrl) {
+    return '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>QR Label</title>'
+        + '<style>'
+        + '@page{size:50mm 40mm;margin:0}'
+        + 'body{margin:0;padding:2mm;font-family:Arial,sans-serif;font-size:7pt;width:46mm;}'
+        + '.lbl{display:flex;flex-direction:column;align-items:center;height:36mm;justify-content:space-between;}'
+        + '#lqr canvas,#lqr img{width:28mm!important;height:28mm!important;}'
+        + '.linfo{text-align:center;line-height:1.3;}'
+        + '</style>'
+        + '<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" integrity="sha512-CNgIRecGo7nphbeZ04Sc13ka07paqdeTu0WR1IM4kNcpmBAUSHSE1QMQ/Ty/0CXDG3azSAEMsAToFMLIAM30g==" crossorigin="anonymous"><\/script>'
+        + '</head><body>'
+        + '<div class="lbl"><div id="lqr"></div>'
+        + '<div class="linfo"><strong>Order #' + orderId + '</strong>'
+        + (invoiceNumber ? '<br>Inv: ' + invoiceNumber : '')
+        + '<br>' + customerName + '</div></div>'
+        + '<script>new QRCode(document.getElementById("lqr"),{text:' + JSON.stringify(qrUrl) + ',width:106,height:106,correctLevel:QRCode.CorrectLevel.M});<\/script>'
+        + '</body></html>';
+}
+function printQrLabel(orderId, customerName, invoiceNumber, qrUrl) {
+    var w = window.open('', '_blank', 'width=300,height=260');
+    w.document.write(buildLabelHtml(orderId, customerName, invoiceNumber, qrUrl));
+    w.document.close();
+    w.onload = function(){ w.focus(); w.print(); };
+}
+function downloadQrPdf(orderId, customerName, invoiceNumber, qrUrl) {
+    var w = window.open('', '_blank', 'width=300,height=260');
+    w.document.write(buildLabelHtml(orderId, customerName, invoiceNumber, qrUrl));
+    w.document.close();
+    w.onload = function(){ w.focus(); w.print(); };
+}
+</script>
 
         <?php if ($waUrl): ?>
         <div class="card">

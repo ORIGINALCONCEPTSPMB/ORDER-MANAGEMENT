@@ -3,6 +3,7 @@ session_start();
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/auth.php';
 
 $hash = trim($_GET['hash'] ?? '');
 // The QR hash (32 hex chars = 128-bit entropy) serves as the access token.
@@ -21,27 +22,32 @@ $stmt = $db->prepare(
 $stmt->execute([$hash]);
 $order = $stmt->fetch();
 
-$allStages = $db->query('SELECT * FROM pf_stages WHERE is_active=1 ORDER BY order_position ASC')->fetchAll();
-$error     = '';
-$success   = '';
+$allStages  = $db->query('SELECT * FROM pf_stages WHERE is_active=1 ORDER BY order_position ASC')->fetchAll();
+$error      = '';
+$success    = '';
+$isLoggedIn = isLoggedIn();
 
-// Handle stage update POST
+// Handle stage update POST — requires platform login
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $order) {
-    $newStage = !empty($_POST['new_stage']) ? (int)$_POST['new_stage'] : null;
-    if ($newStage) {
-        $now = date('Y-m-d H:i:s');
-        $db->prepare(
-            'UPDATE pf_orders SET current_stage=?, updated_at=? WHERE id=?'
-        )->execute([$newStage, $now, $order['id']]);
-        $db->prepare(
-            'UPDATE pf_stage_history SET completed_at=? WHERE order_id=? AND completed_at IS NULL'
-        )->execute([$now, $order['id']]);
-        $db->prepare(
-            'INSERT INTO pf_stage_history (order_id, stage_id, entered_at) VALUES (?,?,?)'
-        )->execute([$order['id'], $newStage, $now]);
+    if (!$isLoggedIn) {
+        $error = 'You must be logged in to update the order stage.';
+    } else {
+        $newStage = !empty($_POST['new_stage']) ? (int)$_POST['new_stage'] : null;
+        if ($newStage) {
+            $now = date('Y-m-d H:i:s');
+            $db->prepare(
+                'UPDATE pf_orders SET current_stage=?, updated_at=? WHERE id=?'
+            )->execute([$newStage, $now, $order['id']]);
+            $db->prepare(
+                'UPDATE pf_stage_history SET completed_at=? WHERE order_id=? AND completed_at IS NULL'
+            )->execute([$now, $order['id']]);
+            $db->prepare(
+                'INSERT INTO pf_stage_history (order_id, stage_id, entered_at) VALUES (?,?,?)'
+            )->execute([$order['id'], $newStage, $now]);
 
-        header('Location: ' . rtrim(APP_URL, '/') . '/orders/qr.php?hash=' . urlencode($hash) . '&updated=1');
-        exit;
+            header('Location: ' . rtrim(APP_URL, '/') . '/orders/qr.php?hash=' . urlencode($hash) . '&updated=1');
+            exit;
+        }
     }
 }
 
@@ -150,10 +156,21 @@ $pageTitle = $order ? 'Order #' . $order['id'] : 'Order Not Found';
     </div>
     <?php endif; ?>
 
-    <!-- Update Stage Form (for staff) -->
+    <!-- Update Stage Form (for staff) — requires login -->
     <?php if (!empty($allStages)): ?>
     <div class="qr-card">
         <h2>Update Stage</h2>
+        <?php if ($error): ?>
+        <div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:6px;padding:10px 14px;margin-bottom:12px;color:#991b1b;font-size:0.9em;">
+            <?= htmlspecialchars($error) ?>
+            <a href="<?= rtrim(APP_URL, '/') ?>/auth/login.php" style="margin-left:8px;text-decoration:underline;">Log in</a>
+        </div>
+        <?php endif; ?>
+        <?php if (!$isLoggedIn): ?>
+        <p style="color:#666;font-size:0.9em;margin:0 0 10px;">
+            <a href="<?= rtrim(APP_URL, '/') ?>/auth/login.php" style="color:var(--primary);font-weight:600;">Log in to the platform</a> to update this order's stage.
+        </p>
+        <?php else: ?>
         <form method="POST" action="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>?hash=<?= urlencode($hash) ?>">
             <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
                 <select name="new_stage" class="form-control" style="flex:1;min-width:160px;">
@@ -167,6 +184,7 @@ $pageTitle = $order ? 'Order #' . $order['id'] : 'Order Not Found';
                 <button type="submit" class="btn btn-primary">Update</button>
             </div>
         </form>
+        <?php endif; ?>
     </div>
     <?php endif; ?>
 

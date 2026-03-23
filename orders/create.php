@@ -14,6 +14,13 @@ $db          = getDb();
 $stages       = $db->query('SELECT * FROM pf_stages WHERE is_active=1 ORDER BY order_position ASC')->fetchAll();
 $customFields = getCustomFields();
 
+// Load order field visibility/required settings
+$orderFieldsEnabled  = json_decode(getSetting('order_fields_enabled',  '{}'), true) ?: [];
+$orderFieldsRequired = json_decode(getSetting('order_fields_required', '{}'), true) ?: [];
+// Defaults: all enabled
+$fieldEnabled  = function(string $k) use ($orderFieldsEnabled)  { return !isset($orderFieldsEnabled[$k])  || $orderFieldsEnabled[$k]; };
+$fieldRequired = function(string $k) use ($orderFieldsRequired) { return !empty($orderFieldsRequired[$k]); };
+
 $error = '';
 $post  = [];
 
@@ -32,7 +39,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (empty($customerName)) {
             $error = 'Customer name is required.';
-        } elseif (empty($jobDetails)) {
+        } elseif ($fieldRequired('whatsapp') && empty($whatsapp)) {
+            $error = 'WhatsApp number is required.';
+        } elseif ($fieldRequired('invoice_number') && empty($invoiceNumber)) {
+            $error = 'Invoice number is required.';
+        } elseif ($fieldRequired('job_details') && empty($jobDetails)) {
             $error = 'Job details are required.';
         } else {
             // Collect custom field values
@@ -110,37 +121,52 @@ include __DIR__ . '/../includes/header.php';
                     <input type="text" id="customer_name" name="customer_name" class="form-control" required
                            value="<?= htmlspecialchars($post['customer_name'] ?? '') ?>" placeholder="Full name">
                 </div>
+                <?php if ($fieldEnabled('business_name')): ?>
                 <div class="form-group">
-                    <label class="form-label" for="business_name">Business Name</label>
+                    <label class="form-label" for="business_name">Business Name<?= $fieldRequired('business_name') ? ' <span class="required">*</span>' : '' ?></label>
                     <input type="text" id="business_name" name="business_name" class="form-control"
+                           <?= $fieldRequired('business_name') ? 'required' : '' ?>
                            value="<?= htmlspecialchars($post['business_name'] ?? '') ?>" placeholder="Business or trading name">
                 </div>
+                <?php endif; ?>
             </div>
 
             <div class="form-row">
+                <?php if ($fieldEnabled('whatsapp')): ?>
                 <div class="form-group">
-                    <label class="form-label" for="whatsapp">WhatsApp Number</label>
+                    <label class="form-label" for="whatsapp">WhatsApp Number<?= $fieldRequired('whatsapp') ? ' <span class="required">*</span>' : '' ?></label>
                     <input type="tel" id="whatsapp" name="whatsapp" class="form-control"
+                           <?= $fieldRequired('whatsapp') ? 'required' : '' ?>
                            value="<?= htmlspecialchars($post['whatsapp'] ?? '') ?>" placeholder="+27 82 123 4567">
                 </div>
+                <?php endif; ?>
+                <?php if ($fieldEnabled('invoice_number')): ?>
                 <div class="form-group">
-                    <label class="form-label" for="invoice_number">Invoice Number</label>
+                    <label class="form-label" for="invoice_number">Invoice Number<?= $fieldRequired('invoice_number') ? ' <span class="required">*</span>' : '' ?></label>
                     <input type="text" id="invoice_number" name="invoice_number" class="form-control"
+                           <?= $fieldRequired('invoice_number') ? 'required' : '' ?>
                            value="<?= htmlspecialchars($post['invoice_number'] ?? '') ?>" placeholder="INV-0001">
                 </div>
+                <?php endif; ?>
             </div>
 
+            <?php if ($fieldEnabled('job_details')): ?>
             <div class="form-group">
-                <label class="form-label" for="job_details">Job Details <span class="required">*</span></label>
-                <textarea id="job_details" name="job_details" class="form-control" required rows="4"
-                          placeholder="Describe the job requirements..."><?= htmlspecialchars($post['job_details'] ?? '') ?></textarea>
+                <label class="form-label" for="job_details">Job Details<?= $fieldRequired('job_details') ? ' <span class="required">*</span>' : '' ?></label>
+                <textarea id="job_details" name="job_details" class="form-control"
+                          <?= $fieldRequired('job_details') ? 'required' : '' ?>
+                          rows="4" placeholder="Describe the job requirements..."><?= htmlspecialchars($post['job_details'] ?? '') ?></textarea>
             </div>
+            <?php endif; ?>
 
+            <?php if ($fieldEnabled('product_lines')): ?>
             <div class="form-group">
-                <label class="form-label" for="product_lines">Product Lines</label>
-                <textarea id="product_lines" name="product_lines" class="form-control" rows="3"
-                          placeholder="One product per line"><?= htmlspecialchars($post['product_lines'] ?? '') ?></textarea>
+                <label class="form-label" for="product_lines">Product Lines<?= $fieldRequired('product_lines') ? ' <span class="required">*</span>' : '' ?></label>
+                <textarea id="product_lines" name="product_lines" class="form-control"
+                          <?= $fieldRequired('product_lines') ? 'required' : '' ?>
+                          rows="3" placeholder="One product per line"><?= htmlspecialchars($post['product_lines'] ?? '') ?></textarea>
             </div>
+            <?php endif; ?>
 
             <div class="form-group">
                 <label class="form-label" for="current_stage">Current Stage</label>

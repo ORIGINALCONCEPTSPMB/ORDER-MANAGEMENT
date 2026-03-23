@@ -324,6 +324,10 @@ include __DIR__ . '/../includes/header.php';
                         onclick="return document.querySelectorAll('[name=order_ids]:checked').length > 0 || (alert('Select at least one order.'), false)">
                     Apply
                 </button>
+                <button type="button" class="btn btn-secondary btn-sm"
+                        onclick="printSelectedLabels()">
+                    &#x1F5A8; Print QR Labels
+                </button>
             </div>
         </div>
         <div class="card-body" style="padding:0;">
@@ -424,6 +428,12 @@ function updateJson() {
         var cbs = document.querySelectorAll('[name=inv]');
         return cbs[i] && cbs[i].checked;
     });
+}
+function printSelectedLabels() {
+    var checked = document.querySelectorAll('[name="order_ids[]"]:checked');
+    if (!checked.length) { alert('Select at least one order first.'); return; }
+    var ids = Array.from(checked).map(function(c){ return c.value; }).join(',');
+    window.open('<?= rtrim(APP_URL, '/') ?>/orders/print-labels.php?ids=' + ids, '_blank');
 }
 </script>
 

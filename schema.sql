@@ -186,10 +186,14 @@ INSERT IGNORE INTO `pf_settings` (`setting_key`, `setting_value`) VALUES
 ('company_name', 'Your Company'),
 ('company_phone', ''),
 ('company_email', ''),
+('company_logo_url', ''),
 ('portal_title', 'Track Your Order'),
-('portal_intro', 'Enter your order ID and the last 4 digits of your WhatsApp number to track your order.'),
+('portal_intro', 'Enter your order number or invoice number to track your order.'),
+('portal_track_mode', 'order_id_only'),
 ('orders_per_page', '20'),
 ('enable_whatsapp', '1'),
 ('wa_default_country', '27'),
 ('invoiceninja_url', ''),
-('invoiceninja_token', '');
+('invoiceninja_token', ''),
+('order_fields_enabled', '{"business_name":true,"whatsapp":true,"invoice_number":true,"job_details":true,"product_lines":true}'),
+('order_fields_required', '{"whatsapp":true,"invoice_number":false,"job_details":false,"product_lines":false}');

@@ -96,8 +96,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
         setFlash('error', 'Invalid security token.');
     } else {
         $keys = [
-            'company_name', 'company_phone', 'company_email',
-            'portal_title', 'portal_intro', 'orders_per_page',
+            'company_name', 'company_phone', 'company_email', 'company_logo_url',
+            'portal_title', 'portal_intro', 'portal_track_mode', 'orders_per_page',
             'enable_whatsapp', 'wa_default_country',
             'invoiceninja_url', 'invoiceninja_token',
         ];
@@ -107,6 +107,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
             } else {
                 saveSetting($key, trim($_POST[$key] ?? ''));
             }
+        }
+        // Order fields enabled/required JSON settings
+        if (isset($_POST['order_fields'])) {
+            $allFieldKeys = ['business_name','whatsapp','invoice_number','job_details','product_lines'];
+            $enabled  = [];
+            $required = [];
+            foreach ($allFieldKeys as $fk) {
+                $enabled[$fk]  = !empty($_POST['order_fields']['enabled'][$fk]);
+                $required[$fk] = !empty($_POST['order_fields']['required'][$fk]);
+            }
+            saveSetting('order_fields_enabled', json_encode($enabled));
+            saveSetting('order_fields_required', json_encode($required));
         }
         setFlash('success', 'Settings saved.');
     }
@@ -151,8 +163,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delet
 
 $settings     = getSettings();
 $customFields = getCustomFields();
-$activeTab    = in_array($_GET['tab'] ?? '', ['whatsapp','invoiceninja','backup','custom_fields'])
-              ? ($_GET['tab']) : 'general';
+$validTabs    = ['general','whatsapp','invoiceninja','backup','custom_fields','order_template','customer_portal'];
+$activeTab    = in_array($_GET['tab'] ?? '', $validTabs) ? ($_GET['tab']) : 'general';
+
+// Decode order field settings
+$orderFieldsEnabled  = json_decode($settings['order_fields_enabled']  ?? '{}', true) ?: [];
+$orderFieldsRequired = json_decode($settings['order_fields_required'] ?? '{}', true) ?: [];
+$allOrderFields = [
+    'business_name'  => 'Business Name',
+    'whatsapp'       => 'WhatsApp Number',
+    'invoice_number' => 'Invoice Number',
+    'job_details'    => 'Job Details',
+    'product_lines'  => 'Product Lines',
+];
 
 $pageTitle = 'Settings';
 include __DIR__ . '/../includes/header.php';
@@ -169,11 +192,13 @@ include __DIR__ . '/../includes/header.php';
 <div class="settings-tabs">
     <?php
     $tabs = [
-        'general'       => 'General',
-        'whatsapp'      => 'WhatsApp',
-        'invoiceninja'  => 'InvoiceNinja',
-        'backup'        => 'Backup',
-        'custom_fields' => 'Custom Fields',
+        'general'          => 'General',
+        'whatsapp'         => 'WhatsApp',
+        'order_template'   => 'Order Template',
+        'customer_portal'  => 'Customer Portal',
+        'invoiceninja'     => 'InvoiceNinja',
+        'backup'           => 'Backup',
+        'custom_fields'    => 'Custom Fields',
     ];
     foreach ($tabs as $key => $label): ?>
     <a href="?tab=<?= $key ?>" class="settings-tab <?= $activeTab === $key ? 'active' : '' ?>"><?= $label ?></a>
@@ -204,12 +229,9 @@ include __DIR__ . '/../includes/header.php';
                 <input type="email" name="company_email" class="form-control" value="<?= htmlspecialchars($settings['company_email'] ?? '') ?>">
             </div>
             <div class="form-group">
-                <label class="form-label">Order Tracking Portal Title</label>
-                <input type="text" name="portal_title" class="form-control" value="<?= htmlspecialchars($settings['portal_title'] ?? '') ?>">
-            </div>
-            <div class="form-group">
-                <label class="form-label">Order Tracking Portal Intro</label>
-                <textarea name="portal_intro" class="form-control" rows="2"><?= htmlspecialchars($settings['portal_intro'] ?? '') ?></textarea>
+                <label class="form-label">Company Logo URL</label>
+                <input type="url" name="company_logo_url" class="form-control" value="<?= htmlspecialchars($settings['company_logo_url'] ?? '') ?>" placeholder="https://yourdomain.com/logo.png">
+                <div class="form-hint">Full URL to your company logo image (shown on customer tracking portal)</div>
             </div>
             <div class="form-group">
                 <label class="form-label">Orders Per Page</label>
@@ -217,6 +239,81 @@ include __DIR__ . '/../includes/header.php';
             </div>
             <button type="submit" class="btn btn-primary">Save Settings</button>
         </form>
+    </div>
+</div>
+
+<?php elseif ($activeTab === 'order_template'): ?>
+<div class="card">
+    <div class="card-header"><h2 class="card-title">Order Form Template</h2></div>
+    <div class="card-body">
+        <p style="color:var(--text-muted);font-size:0.9em;margin-bottom:20px;">
+            Configure which fields appear on the New Order / Edit Order forms.
+            <strong>Customer Name</strong> is always required. <strong>WhatsApp Number</strong> is the recommended minimum along with an order/invoice number.
+        </p>
+        <form method="POST" action="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>">
+            <?= csrfField() ?>
+            <input type="hidden" name="action" value="save_settings">
+            <input type="hidden" name="tab" value="order_template">
+            <table class="table" style="max-width:600px;">
+                <thead>
+                    <tr><th>Field</th><th style="text-align:center;">Enabled</th><th style="text-align:center;">Required</th></tr>
+                </thead>
+                <tbody>
+                <?php foreach ($allOrderFields as $fk => $flabel): ?>
+                <tr>
+                    <td><?= htmlspecialchars($flabel) ?></td>
+                    <td style="text-align:center;">
+                        <input type="checkbox" name="order_fields[enabled][<?= $fk ?>]" value="1"
+                               <?= !empty($orderFieldsEnabled[$fk]) ? 'checked' : '' ?>
+                               id="ofe_<?= $fk ?>">
+                    </td>
+                    <td style="text-align:center;">
+                        <input type="checkbox" name="order_fields[required][<?= $fk ?>]" value="1"
+                               <?= !empty($orderFieldsRequired[$fk]) ? 'checked' : '' ?>>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+            <p style="font-size:0.85em;color:var(--text-muted);">Tip: The minimum recommended setup is <em>WhatsApp Number</em> enabled + required, plus at least one of <em>Invoice Number</em> or <em>Job Details</em>.</p>
+            <button type="submit" class="btn btn-primary">Save Order Template</button>
+        </form>
+    </div>
+</div>
+
+<?php elseif ($activeTab === 'customer_portal'): ?>
+<div class="card">
+    <div class="card-header"><h2 class="card-title">Customer Tracking Portal</h2></div>
+    <div class="card-body">
+        <form method="POST" action="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>">
+            <?= csrfField() ?>
+            <input type="hidden" name="action" value="save_settings">
+            <input type="hidden" name="tab" value="customer_portal">
+            <div class="form-group">
+                <label class="form-label">Portal Page Title</label>
+                <input type="text" name="portal_title" class="form-control" value="<?= htmlspecialchars($settings['portal_title'] ?? '') ?>">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Portal Intro Text</label>
+                <textarea name="portal_intro" class="form-control" rows="2"><?= htmlspecialchars($settings['portal_intro'] ?? '') ?></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Order Lookup Mode</label>
+                <select name="portal_track_mode" class="form-control" style="max-width:360px;">
+                    <option value="order_id_only" <?= ($settings['portal_track_mode'] ?? 'order_id_only') === 'order_id_only' ? 'selected' : '' ?>>Order ID only</option>
+                    <option value="invoice_number_only" <?= ($settings['portal_track_mode'] ?? '') === 'invoice_number_only' ? 'selected' : '' ?>>Invoice Number only</option>
+                    <option value="order_id_wa4" <?= ($settings['portal_track_mode'] ?? '') === 'order_id_wa4' ? 'selected' : '' ?>>Order ID + last 4 digits of WhatsApp</option>
+                </select>
+                <div class="form-hint">Choose how customers identify their order on the tracking page.</div>
+            </div>
+            <button type="submit" class="btn btn-primary">Save Portal Settings</button>
+        </form>
+        <?php if (!empty($settings['company_logo_url'])): ?>
+        <div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--border);">
+            <div style="font-size:0.85em;color:var(--text-muted);margin-bottom:8px;">Logo Preview:</div>
+            <img src="<?= htmlspecialchars($settings['company_logo_url']) ?>" alt="Logo" style="max-height:60px;max-width:240px;">
+        </div>
+        <?php endif; ?>
     </div>
 </div>
 

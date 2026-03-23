@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         recordLoginAttempt($email, false);
                         $error = 'Your account has been deactivated. Please contact an administrator.';
                     } elseif (!$user['is_verified']) {
-                        // Resend verification code
+                        // Resend verification code for unverified accounts
                         $code      = generateCode();
                         $expiresAt = date('Y-m-d H:i:s', time() + CODE_EXPIRY);
                         $db->prepare(
@@ -72,21 +72,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $_SESSION['pending_email']   = $user['email'];
                         redirect('../auth/verify.php?type=registration');
                     } else {
-                        // Generate 2FA code
-                        $code      = generateCode();
-                        $expiresAt = date('Y-m-d H:i:s', time() + CODE_EXPIRY);
-                        $db->prepare(
-                            'UPDATE verification_codes SET used_at = NOW() WHERE user_id = ? AND type = ? AND used_at IS NULL'
-                        )->execute([$user['id'], 'login_2fa']);
-                        $db->prepare(
-                            'INSERT INTO verification_codes (user_id, code, type, expires_at) VALUES (?,?,?,?)'
-                        )->execute([$user['id'], $code, 'login_2fa', $expiresAt]);
-
-                        sendVerificationCode($user['email'], $user['first_name'], $code, 'login_2fa');
+                        // Verified user: log in directly (2FA only required at registration)
                         recordLoginAttempt($email, true);
-                        $_SESSION['pending_user_id'] = $user['id'];
-                        $_SESSION['pending_email']   = $user['email'];
-                        redirect('../auth/verify.php?type=login_2fa');
+                        loginUser($user['id']);
+                        setFlash('success', 'Logged in successfully.');
+                        redirect('../index.php');
                     }
                 } else {
                     recordLoginAttempt($email, false);
