@@ -154,3 +154,93 @@ function isStrongPassword(string $password): bool {
     if (!preg_match('/[0-9]/', $password)) return false;
     return true;
 }
+
+/**
+ * Fetch all settings from pf_settings table into associative array
+ */
+function getSettings(): array {
+    $db = getDb();
+    $stmt = $db->query('SELECT setting_key, setting_value FROM pf_settings');
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $settings = [];
+    foreach ($rows as $row) {
+        $settings[$row['setting_key']] = $row['setting_value'];
+    }
+    return $settings;
+}
+
+/**
+ * Get a single setting value
+ */
+function getSetting(string $key, string $default = ''): string {
+    $db = getDb();
+    $stmt = $db->prepare('SELECT setting_value FROM pf_settings WHERE setting_key = ?');
+    $stmt->execute([$key]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $row ? (string)$row['setting_value'] : $default;
+}
+
+/**
+ * Save a single setting value
+ */
+function saveSetting(string $key, string $value): void {
+    $db = getDb();
+    $stmt = $db->prepare('INSERT INTO pf_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?');
+    $stmt->execute([$key, $value, $value]);
+}
+
+/**
+ * Generate a unique QR code hash for an order
+ */
+function generateQrHash(): string {
+    return bin2hex(random_bytes(16));
+}
+
+/**
+ * Get Google Charts QR code image URL for a hash
+ */
+function getQrImageUrl(string $hash, int $size = 150): string {
+    $url = rtrim(APP_URL, '/') . '/orders/qr.php?hash=' . $hash;
+    return 'https://chart.googleapis.com/chart?cht=qr&chs=' . $size . 'x' . $size . '&chl=' . urlencode($url);
+}
+
+/**
+ * Format a WhatsApp wa.me URL with phone and message
+ */
+function getWhatsAppUrl(string $phone, string $message): string {
+    $phone = preg_replace('/\D/', '', $phone);
+    return 'https://wa.me/' . $phone . '?text=' . rawurlencode($message);
+}
+
+/**
+ * Replace template placeholders with order data
+ */
+function parseWhatsAppTemplate(string $template, array $order, string $stageName = ''): string {
+    $replacements = [
+        '{customer_name}' => $order['customer_name'] ?? '',
+        '{order_id}'      => $order['id'] ?? '',
+        '{business_name}' => $order['business_name'] ?? '',
+        '{stage_name}'    => $stageName,
+    ];
+    return str_replace(array_keys($replacements), array_values($replacements), $template);
+}
+
+/**
+ * Get all custom fields ordered by field_order
+ */
+function getCustomFields(): array {
+    $db = getDb();
+    $stmt = $db->query('SELECT * FROM pf_custom_fields ORDER BY field_order ASC, id ASC');
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/**
+ * Decode JSON custom_fields from an order row into an array
+ */
+function getOrderCustomFields(array $order): array {
+    if (empty($order['custom_fields'])) {
+        return [];
+    }
+    $decoded = json_decode($order['custom_fields'], true);
+    return is_array($decoded) ? $decoded : [];
+}

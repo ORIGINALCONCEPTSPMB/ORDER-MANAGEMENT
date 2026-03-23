@@ -26,3 +26,9 @@ define('MAX_LOGIN_ATTEMPTS', 5);
 define('LOCKOUT_DURATION', 900);
 define('CODE_EXPIRY', 600);
 define('RESET_TOKEN_EXPIRY', 3600);
+
+// ProcessFlow Settings
+define('WA_DEFAULT_COUNTRY', '27'); // Default WhatsApp country code (South Africa)
+define('COMPANY_NAME', 'Your Company');
+define('IN_URL', ''); // InvoiceNinja URL
+define('IN_TOKEN', ''); // InvoiceNinja API token

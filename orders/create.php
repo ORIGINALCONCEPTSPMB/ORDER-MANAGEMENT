@@ -1,97 +1,97 @@
 <?php
 session_start();
-
-if (!file_exists(__DIR__ . '/../config.php')) {
-    header('Location: ../install.php');
-    exit;
-}
-
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/csrf.php';
-
 requireLogin();
+
 $currentUser = getCurrentUser();
 $isAdmin     = in_array($currentUser['role'], ['admin', 'super_admin']);
+$db          = getDb();
 
-$db    = getDb();
+$stages       = $db->query('SELECT * FROM pf_stages WHERE is_active=1 ORDER BY order_position ASC')->fetchAll();
+$customFields = getCustomFields();
+
 $error = '';
-
-// Fetch users for assign-to dropdown (admin only)
-$users = [];
-if ($isAdmin) {
-    $stmt = $db->prepare('SELECT id, first_name, last_name FROM users WHERE is_active = 1 ORDER BY first_name');
-    $stmt->execute();
-    $users = $stmt->fetchAll();
-}
+$post  = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
         $error = 'Invalid security token. Please try again.';
     } else {
-        $customerName  = trim($_POST['customer_name']  ?? '');
-        $customerEmail = trim($_POST['customer_email'] ?? '');
-        $customerPhone = trim($_POST['customer_phone'] ?? '');
-        $description   = trim($_POST['description']    ?? '');
-        $status        = $_POST['status']   ?? 'pending';
-        $priority      = $_POST['priority'] ?? 'medium';
-        $assignedTo    = $isAdmin && !empty($_POST['assigned_to']) ? (int) $_POST['assigned_to'] : null;
-        $notes         = trim($_POST['notes'] ?? '');
+        $post = $_POST;
+        $customerName  = trim($post['customer_name']  ?? '');
+        $businessName  = trim($post['business_name']  ?? '');
+        $whatsapp      = trim($post['whatsapp']        ?? '');
+        $invoiceNumber = trim($post['invoice_number']  ?? '');
+        $jobDetails    = trim($post['job_details']     ?? '');
+        $productLines  = trim($post['product_lines']   ?? '');
+        $currentStage  = !empty($post['current_stage']) ? (int)$post['current_stage'] : null;
 
         if (empty($customerName)) {
             $error = 'Customer name is required.';
-        } elseif (empty($description)) {
-            $error = 'Description is required.';
-        } elseif (!in_array($status, ['pending','processing','completed','cancelled'])) {
-            $error = 'Invalid status.';
-        } elseif (!in_array($priority, ['low','medium','high'])) {
-            $error = 'Invalid priority.';
-        } elseif ($customerEmail && !isValidEmail($customerEmail)) {
-            $error = 'Invalid customer email address.';
+        } elseif (empty($jobDetails)) {
+            $error = 'Job details are required.';
         } else {
-            // Ensure order number is unique
-            do {
-                $orderNumber = generateOrderNumber();
-                $chk = $db->prepare('SELECT id FROM orders WHERE order_number = ? LIMIT 1');
-                $chk->execute([$orderNumber]);
-            } while ($chk->fetch());
+            // Collect custom field values
+            $cfValues = [];
+            foreach ($customFields as $cf) {
+                $key = 'cf_' . $cf['id'];
+                if ($cf['field_type'] === 'checkbox') {
+                    $cfValues[$cf['id']] = isset($post[$key]) ? '1' : '0';
+                } else {
+                    $cfValues[$cf['id']] = trim($post[$key] ?? '');
+                }
+                if ($cf['is_required'] && $cf['field_type'] !== 'checkbox' && $cfValues[$cf['id']] === '') {
+                    $error = htmlspecialchars($cf['field_label']) . ' is required.';
+                    break;
+                }
+            }
 
-            $db->prepare(
-                'INSERT INTO orders
-                    (order_number, customer_name, customer_email, customer_phone, description,
-                     status, priority, assigned_to, notes, created_by)
-                 VALUES (?,?,?,?,?,?,?,?,?,?)'
-            )->execute([
-                $orderNumber, $customerName, $customerEmail, $customerPhone, $description,
-                $status, $priority, $assignedTo, $notes, $currentUser['id']
-            ]);
+            if (!$error) {
+                $qrHash = generateQrHash();
+                $now    = date('Y-m-d H:i:s');
 
-            $orderId = (int) $db->lastInsertId();
+                $stmt = $db->prepare(
+                    'INSERT INTO pf_orders
+                        (customer_name, business_name, whatsapp, invoice_number, job_details,
+                         product_lines, current_stage, qr_code_hash, custom_fields,
+                         created_by, created_at, updated_at)
+                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)'
+                );
+                $stmt->execute([
+                    $customerName, $businessName, $whatsapp, $invoiceNumber, $jobDetails,
+                    $productLines ?: null, $currentStage, $qrHash,
+                    !empty($cfValues) ? json_encode($cfValues) : null,
+                    $currentUser['id'], $now, $now
+                ]);
+                $orderId = (int)$db->lastInsertId();
 
-            // Log creation to history
-            $db->prepare(
-                'INSERT INTO order_history (order_id, user_id, action, new_status, note)
-                 VALUES (?,?,?,?,?)'
-            )->execute([$orderId, $currentUser['id'], 'Order created', $status, 'Order was created.']);
+                if ($currentStage) {
+                    $db->prepare(
+                        'INSERT INTO pf_stage_history (order_id, stage_id, entered_at) VALUES (?,?,?)'
+                    )->execute([$orderId, $currentStage, $now]);
+                }
 
-            setFlash('success', 'Order ' . $orderNumber . ' created successfully.');
-            redirect('view.php?id=' . $orderId);
+                setFlash('success', 'Order #' . $orderId . ' created successfully.');
+                redirect(rtrim(APP_URL, '/') . '/orders/view.php?id=' . $orderId);
+            }
         }
     }
 }
 
-$pageTitle = 'Create Order';
+$pageTitle = 'New Order';
 include __DIR__ . '/../includes/header.php';
 ?>
 
 <nav class="breadcrumb">
-    <a href="../index.php">Dashboard</a>
+    <a href="<?= rtrim(APP_URL, '/') ?>/index.php">Dashboard</a>
     <span class="breadcrumb-sep">/</span>
-    <a href="index.php">Orders</a>
+    <a href="<?= rtrim(APP_URL, '/') ?>/orders/index.php">Orders</a>
     <span class="breadcrumb-sep">/</span>
-    <span class="breadcrumb-current">Create</span>
+    <span class="breadcrumb-current">New Order</span>
 </nav>
 
 <?php if ($error): ?>
@@ -99,81 +99,92 @@ include __DIR__ . '/../includes/header.php';
 <?php endif; ?>
 
 <div class="card">
-    <div class="card-header">
-        <h2 class="card-title">New Order</h2>
-    </div>
+    <div class="card-header"><h2 class="card-title">New Order</h2></div>
     <div class="card-body">
-        <form method="POST" action="" data-validate>
+        <form method="POST" action="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>">
             <?= csrfField() ?>
 
             <div class="form-row">
                 <div class="form-group">
                     <label class="form-label" for="customer_name">Customer Name <span class="required">*</span></label>
                     <input type="text" id="customer_name" name="customer_name" class="form-control" required
-                           value="<?= htmlspecialchars($_POST['customer_name'] ?? '') ?>" placeholder="Full name">
+                           value="<?= htmlspecialchars($post['customer_name'] ?? '') ?>" placeholder="Full name">
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="customer_email">Customer Email</label>
-                    <input type="email" id="customer_email" name="customer_email" class="form-control"
-                           value="<?= htmlspecialchars($_POST['customer_email'] ?? '') ?>" placeholder="customer@example.com">
+                    <label class="form-label" for="business_name">Business Name</label>
+                    <input type="text" id="business_name" name="business_name" class="form-control"
+                           value="<?= htmlspecialchars($post['business_name'] ?? '') ?>" placeholder="Business or trading name">
                 </div>
             </div>
 
             <div class="form-row">
                 <div class="form-group">
-                    <label class="form-label" for="customer_phone">Customer Phone</label>
-                    <input type="text" id="customer_phone" name="customer_phone" class="form-control"
-                           value="<?= htmlspecialchars($_POST['customer_phone'] ?? '') ?>" placeholder="+1 555 000 0000">
+                    <label class="form-label" for="whatsapp">WhatsApp Number</label>
+                    <input type="tel" id="whatsapp" name="whatsapp" class="form-control"
+                           value="<?= htmlspecialchars($post['whatsapp'] ?? '') ?>" placeholder="+27 82 123 4567">
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="priority">Priority</label>
-                    <select id="priority" name="priority" class="form-control">
-                        <?php foreach (['low','medium','high'] as $p): ?>
-                        <option value="<?= $p ?>" <?= ($_POST['priority'] ?? 'medium') === $p ? 'selected' : '' ?>><?= ucfirst($p) ?></option>
-                        <?php endforeach; ?>
-                    </select>
+                    <label class="form-label" for="invoice_number">Invoice Number</label>
+                    <input type="text" id="invoice_number" name="invoice_number" class="form-control"
+                           value="<?= htmlspecialchars($post['invoice_number'] ?? '') ?>" placeholder="INV-0001">
                 </div>
-            </div>
-
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="form-label" for="status">Status</label>
-                    <select id="status" name="status" class="form-control">
-                        <?php foreach (['pending','processing','completed','cancelled'] as $s): ?>
-                        <option value="<?= $s ?>" <?= ($_POST['status'] ?? 'pending') === $s ? 'selected' : '' ?>><?= ucfirst($s) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <?php if ($isAdmin): ?>
-                <div class="form-group">
-                    <label class="form-label" for="assigned_to">Assign To</label>
-                    <select id="assigned_to" name="assigned_to" class="form-control">
-                        <option value="">Unassigned</option>
-                        <?php foreach ($users as $u): ?>
-                        <option value="<?= $u['id'] ?>" <?= ((int)($_POST['assigned_to'] ?? 0)) === $u['id'] ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($u['first_name'] . ' ' . $u['last_name']) ?>
-                        </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <?php endif; ?>
             </div>
 
             <div class="form-group">
-                <label class="form-label" for="description">Description <span class="required">*</span></label>
-                <textarea id="description" name="description" class="form-control" required rows="4"
-                          maxlength="5000" placeholder="Describe the order requirements..."><?= htmlspecialchars($_POST['description'] ?? '') ?></textarea>
+                <label class="form-label" for="job_details">Job Details <span class="required">*</span></label>
+                <textarea id="job_details" name="job_details" class="form-control" required rows="4"
+                          placeholder="Describe the job requirements..."><?= htmlspecialchars($post['job_details'] ?? '') ?></textarea>
             </div>
 
             <div class="form-group">
-                <label class="form-label" for="notes">Internal Notes</label>
-                <textarea id="notes" name="notes" class="form-control" rows="3"
-                          maxlength="2000" placeholder="Any internal notes (not visible to customer)..."><?= htmlspecialchars($_POST['notes'] ?? '') ?></textarea>
+                <label class="form-label" for="product_lines">Product Lines</label>
+                <textarea id="product_lines" name="product_lines" class="form-control" rows="3"
+                          placeholder="One product per line"><?= htmlspecialchars($post['product_lines'] ?? '') ?></textarea>
             </div>
+
+            <div class="form-group">
+                <label class="form-label" for="current_stage">Current Stage</label>
+                <select id="current_stage" name="current_stage" class="form-control">
+                    <option value="">— No stage —</option>
+                    <?php foreach ($stages as $stage): ?>
+                    <option value="<?= $stage['id'] ?>"
+                        <?= ((int)($post['current_stage'] ?? 0)) === (int)$stage['id'] ? 'selected' : '' ?>>
+                        <?= htmlspecialchars($stage['name']) ?>
+                    </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <?php foreach ($customFields as $cf): ?>
+            <div class="form-group">
+                <label class="form-label" for="cf_<?= $cf['id'] ?>">
+                    <?= htmlspecialchars($cf['field_label']) ?>
+                    <?php if ($cf['is_required']): ?><span class="required">*</span><?php endif; ?>
+                </label>
+                <?php
+                $cfKey = 'cf_' . $cf['id'];
+                $cfVal = $post[$cfKey] ?? '';
+                switch ($cf['field_type']):
+                    case 'textarea': ?>
+                    <textarea id="cf_<?= $cf['id'] ?>" name="cf_<?= $cf['id'] ?>" class="form-control" rows="3"
+                              <?= $cf['is_required'] ? 'required' : '' ?>><?= htmlspecialchars($cfVal) ?></textarea>
+                    <?php break;
+                    case 'checkbox': ?>
+                    <input type="checkbox" id="cf_<?= $cf['id'] ?>" name="cf_<?= $cf['id'] ?>"
+                           <?= $cfVal ? 'checked' : '' ?>>
+                    <?php break;
+                    default: ?>
+                    <input type="<?= htmlspecialchars($cf['field_type']) ?>" id="cf_<?= $cf['id'] ?>"
+                           name="cf_<?= $cf['id'] ?>" class="form-control"
+                           value="<?= htmlspecialchars($cfVal) ?>"
+                           <?= $cf['is_required'] ? 'required' : '' ?>>
+                <?php endswitch; ?>
+            </div>
+            <?php endforeach; ?>
 
             <div class="d-flex gap-12">
                 <button type="submit" class="btn btn-primary">Create Order</button>
-                <a href="index.php" class="btn btn-secondary">Cancel</a>
+                <a href="<?= rtrim(APP_URL, '/') ?>/orders/index.php" class="btn btn-secondary">Cancel</a>
             </div>
         </form>
     </div>

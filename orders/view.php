@@ -1,35 +1,26 @@
 <?php
 session_start();
-
-if (!file_exists(__DIR__ . '/../config.php')) {
-    header('Location: ../install.php');
-    exit;
-}
-
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/csrf.php';
-
 requireLogin();
+
 $currentUser = getCurrentUser();
 $isAdmin     = in_array($currentUser['role'], ['admin', 'super_admin']);
+$db          = getDb();
 
-$id = (int) ($_GET['id'] ?? 0);
+$id = (int)($_GET['id'] ?? 0);
 if (!$id) {
     setFlash('error', 'Invalid order ID.');
-    redirect('index.php');
+    redirect(rtrim(APP_URL, '/') . '/orders/index.php');
 }
 
-$db = getDb();
 $stmt = $db->prepare(
-    'SELECT o.*,
-            CONCAT(c.first_name," ",c.last_name) AS creator_name,
-            CONCAT(a.first_name," ",a.last_name) AS assignee_name
-     FROM orders o
-     LEFT JOIN users c ON c.id = o.created_by
-     LEFT JOIN users a ON a.id = o.assigned_to
+    'SELECT o.*, s.name AS stage_name, s.color AS stage_color, s.whatsapp_template
+     FROM pf_orders o
+     LEFT JOIN pf_stages s ON o.current_stage = s.id
      WHERE o.id = ? LIMIT 1'
 );
 $stmt->execute([$id]);
@@ -37,183 +28,265 @@ $order = $stmt->fetch();
 
 if (!$order) {
     setFlash('error', 'Order not found.');
-    redirect('index.php');
+    redirect(rtrim(APP_URL, '/') . '/orders/index.php');
 }
 
-// Non-admins can only view orders they created or are assigned to
-if (!$isAdmin && $order['created_by'] != $currentUser['id'] && $order['assigned_to'] != $currentUser['id']) {
+if (!$isAdmin && $order['created_by'] != $currentUser['id']) {
     setFlash('error', 'You do not have permission to view this order.');
-    redirect('index.php');
+    redirect(rtrim(APP_URL, '/') . '/orders/index.php');
 }
 
-// Fetch history
+// Handle archive/unarchive POST
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isAdmin) {
+    if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
+        setFlash('error', 'Invalid security token.');
+    } else {
+        $action = $_POST['action'] ?? '';
+        $now = date('Y-m-d H:i:s');
+        if ($action === 'archive') {
+            $db->prepare('UPDATE pf_orders SET is_archived=1, archived_at=?, updated_at=? WHERE id=?')
+               ->execute([$now, $now, $id]);
+            setFlash('success', 'Order archived.');
+        } elseif ($action === 'unarchive') {
+            $db->prepare('UPDATE pf_orders SET is_archived=0, archived_at=NULL, updated_at=? WHERE id=?')
+               ->execute([$now, $id]);
+            setFlash('success', 'Order unarchived.');
+        }
+    }
+    redirect(rtrim(APP_URL, '/') . '/orders/view.php?id=' . $id);
+}
+
+// Load stage history
 $histStmt = $db->prepare(
-    'SELECT oh.*, CONCAT(u.first_name," ",u.last_name) AS user_name
-     FROM order_history oh
-     LEFT JOIN users u ON u.id = oh.user_id
-     WHERE oh.order_id = ?
-     ORDER BY oh.created_at DESC'
+    'SELECT sh.*, s.name AS stage_name, s.color
+     FROM pf_stage_history sh
+     JOIN pf_stages s ON sh.stage_id = s.id
+     WHERE sh.order_id = ?
+     ORDER BY sh.entered_at DESC'
 );
 $histStmt->execute([$id]);
 $history = $histStmt->fetchAll();
 
-// Handle admin status update
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isAdmin && isset($_POST['new_status'])) {
-    if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
-        setFlash('error', 'Invalid security token.');
-    } else {
-        $newStatus = $_POST['new_status'];
-        if (in_array($newStatus, ['pending','processing','completed','cancelled'])) {
-            $oldStatus = $order['status'];
-            $note      = trim($_POST['status_note'] ?? '');
-            $db->prepare('UPDATE orders SET status = ? WHERE id = ?')->execute([$newStatus, $id]);
-            $db->prepare(
-                'INSERT INTO order_history (order_id, user_id, action, old_status, new_status, note)
-                 VALUES (?,?,?,?,?,?)'
-            )->execute([$id, $currentUser['id'], 'Status changed', $oldStatus, $newStatus, $note ?: null]);
-            setFlash('success', 'Order status updated to ' . ucfirst($newStatus) . '.');
-        }
-    }
-    redirect('view.php?id=' . $id);
+// All stages for progress bar
+$allStages = $db->query('SELECT * FROM pf_stages WHERE is_active=1 ORDER BY order_position ASC')->fetchAll();
+
+// Custom fields
+$customFields = getCustomFields();
+$cfValues     = getOrderCustomFields($order);
+
+// WhatsApp
+$waUrl = '';
+if ($order['whatsapp'] && $order['stage_name'] && $order['whatsapp_template']) {
+    $message = parseWhatsAppTemplate($order['whatsapp_template'], $order, $order['stage_name']);
+    $waUrl   = getWhatsAppUrl($order['whatsapp'], $message);
 }
 
-$pageTitle = 'Order ' . htmlspecialchars($order['order_number']);
+// WA redirect from edit page
+$waRedirect = '';
+if (!empty($_SESSION['wa_redirect'])) {
+    $waRedirect = $_SESSION['wa_redirect'];
+    unset($_SESSION['wa_redirect']);
+}
+
+$pageTitle = 'Order #' . $id;
 include __DIR__ . '/../includes/header.php';
 ?>
 
+<?php if ($waRedirect): ?>
+<script>window.open(<?= json_encode($waRedirect) ?>, '_blank');</script>
+<?php endif; ?>
+
 <nav class="breadcrumb">
-    <a href="../index.php">Dashboard</a>
+    <a href="<?= rtrim(APP_URL, '/') ?>/index.php">Dashboard</a>
     <span class="breadcrumb-sep">/</span>
-    <a href="index.php">Orders</a>
+    <a href="<?= rtrim(APP_URL, '/') ?>/orders/index.php">Orders</a>
     <span class="breadcrumb-sep">/</span>
-    <span class="breadcrumb-current"><?= htmlspecialchars($order['order_number']) ?></span>
+    <span class="breadcrumb-current">Order #<?= $id ?></span>
 </nav>
 
-<div class="actions-row">
-    <div>
-        <span class="<?= getStatusBadgeClass($order['status']) ?>" style="font-size:.9rem;padding:5px 12px;"><?= ucfirst($order['status']) ?></span>
-        <span class="<?= getPriorityBadgeClass($order['priority']) ?>" style="font-size:.9rem;padding:5px 12px;"><?= ucfirst($order['priority']) ?> Priority</span>
-    </div>
-    <div class="d-flex gap-8">
-        <?php if ($isAdmin || $order['created_by'] == $currentUser['id']): ?>
-        <a href="edit.php?id=<?= $order['id'] ?>" class="btn btn-secondary">Edit Order</a>
+<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px;">
+    <a href="<?= rtrim(APP_URL, '/') ?>/orders/edit.php?id=<?= $id ?>" class="btn btn-primary">Edit Order</a>
+    <?php if ($waUrl): ?>
+    <a href="<?= htmlspecialchars($waUrl) ?>" target="_blank" class="btn btn-secondary" style="background:#25d366;color:#fff;border-color:#25d366;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle;margin-right:4px;"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+        Send WhatsApp
+    </a>
+    <?php endif; ?>
+    <?php if ($isAdmin): ?>
+    <form method="POST" action="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>?id=<?= $id ?>" style="display:inline;">
+        <?= csrfField() ?>
+        <?php if ($order['is_archived']): ?>
+        <input type="hidden" name="action" value="unarchive">
+        <button type="submit" class="btn btn-secondary" onclick="return confirm('Unarchive this order?')">Unarchive</button>
+        <?php else: ?>
+        <input type="hidden" name="action" value="archive">
+        <button type="submit" class="btn btn-secondary" onclick="return confirm('Archive this order?')">Archive</button>
         <?php endif; ?>
-        <a href="index.php" class="btn btn-secondary">Back to List</a>
-    </div>
+    </form>
+    <?php endif; ?>
 </div>
 
-<div style="display:grid;grid-template-columns:1fr 340px;gap:24px;align-items:start;">
+<?php if ($order['is_archived']): ?>
+<div class="alert alert-error" style="background:#fff3cd;border-color:#ffc107;color:#856404;">
+    This order is archived.
+</div>
+<?php endif; ?>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:24px;flex-wrap:wrap;">
+    <!-- Order Details -->
     <div>
-        <!-- Order Details -->
-        <div class="card mb-24">
-            <div class="card-header">
-                <h2 class="card-title"><?= htmlspecialchars($order['order_number']) ?></h2>
-            </div>
+        <div class="card" style="margin-bottom:20px;">
+            <div class="card-header"><h2 class="card-title">Order Details</h2></div>
             <div class="card-body">
-                <div class="detail-grid">
-                    <div class="detail-item">
-                        <label>Customer Name</label>
-                        <div class="detail-value"><?= htmlspecialchars($order['customer_name']) ?></div>
-                    </div>
-                    <div class="detail-item">
-                        <label>Customer Email</label>
-                        <div class="detail-value"><?= $order['customer_email'] ? htmlspecialchars($order['customer_email']) : '<span class="text-muted">—</span>' ?></div>
-                    </div>
-                    <div class="detail-item">
-                        <label>Customer Phone</label>
-                        <div class="detail-value"><?= $order['customer_phone'] ? htmlspecialchars($order['customer_phone']) : '<span class="text-muted">—</span>' ?></div>
-                    </div>
-                    <div class="detail-item">
-                        <label>Assigned To</label>
-                        <div class="detail-value"><?= htmlspecialchars($order['assignee_name'] ?? 'Unassigned') ?></div>
-                    </div>
-                    <div class="detail-item">
-                        <label>Created By</label>
-                        <div class="detail-value"><?= htmlspecialchars($order['creator_name'] ?? 'N/A') ?></div>
-                    </div>
-                    <div class="detail-item">
-                        <label>Created At</label>
-                        <div class="detail-value"><?= formatDate($order['created_at']) ?></div>
-                    </div>
-                    <div class="detail-item">
-                        <label>Last Updated</label>
-                        <div class="detail-value"><?= formatDate($order['updated_at']) ?></div>
-                    </div>
-                </div>
+                <table style="width:100%;border-collapse:collapse;">
+                    <tr>
+                        <th style="text-align:left;padding:8px 0;color:var(--text-muted);font-weight:500;width:40%;">Customer Name</th>
+                        <td style="padding:8px 0;"><?= htmlspecialchars($order['customer_name']) ?></td>
+                    </tr>
+                    <tr>
+                        <th style="text-align:left;padding:8px 0;color:var(--text-muted);font-weight:500;">Business Name</th>
+                        <td style="padding:8px 0;"><?= htmlspecialchars($order['business_name'] ?: '—') ?></td>
+                    </tr>
+                    <tr>
+                        <th style="text-align:left;padding:8px 0;color:var(--text-muted);font-weight:500;">WhatsApp</th>
+                        <td style="padding:8px 0;">
+                            <?php if ($order['whatsapp']): ?>
+                            <a href="https://wa.me/<?= htmlspecialchars(preg_replace('/\D/', '', $order['whatsapp'])) ?>" target="_blank">
+                                <?= htmlspecialchars($order['whatsapp']) ?>
+                            </a>
+                            <?php else: ?>—<?php endif; ?>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th style="text-align:left;padding:8px 0;color:var(--text-muted);font-weight:500;">Invoice #</th>
+                        <td style="padding:8px 0;"><?= htmlspecialchars($order['invoice_number'] ?: '—') ?></td>
+                    </tr>
+                    <tr>
+                        <th style="text-align:left;padding:8px 0;color:var(--text-muted);font-weight:500;">Current Stage</th>
+                        <td style="padding:8px 0;">
+                            <?php if ($order['stage_name']): ?>
+                            <span class="stage-badge" style="background:<?= htmlspecialchars($order['stage_color']) ?>;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.8em;">
+                                <?= htmlspecialchars($order['stage_name']) ?>
+                            </span>
+                            <?php else: ?>—<?php endif; ?>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th style="text-align:left;padding:8px 0;color:var(--text-muted);font-weight:500;">Created</th>
+                        <td style="padding:8px 0;"><?= formatDate($order['created_at']) ?></td>
+                    </tr>
+                    <tr>
+                        <th style="text-align:left;padding:8px 0;color:var(--text-muted);font-weight:500;">Updated</th>
+                        <td style="padding:8px 0;"><?= formatDate($order['updated_at']) ?></td>
+                    </tr>
+                </table>
 
-                <?php if ($order['description']): ?>
-                <div style="margin-top:20px;">
-                    <label style="font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);">Description</label>
-                    <div style="margin-top:6px;line-height:1.7;color:var(--text);"><?= nl2br(htmlspecialchars($order['description'])) ?></div>
+                <?php if ($order['job_details']): ?>
+                <div style="margin-top:16px;">
+                    <div style="font-weight:500;margin-bottom:6px;color:var(--text-muted);">Job Details</div>
+                    <div style="white-space:pre-wrap;"><?= htmlspecialchars($order['job_details']) ?></div>
                 </div>
                 <?php endif; ?>
 
-                <?php if ($order['notes']): ?>
-                <div style="margin-top:20px;padding:14px;background:var(--warning-light);border-radius:6px;border:1px solid #fed7aa;">
-                    <label style="font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#92400e;">Internal Notes</label>
-                    <div style="margin-top:6px;line-height:1.7;color:#78350f;"><?= nl2br(htmlspecialchars($order['notes'])) ?></div>
+                <?php if ($order['product_lines']): ?>
+                <div style="margin-top:16px;">
+                    <div style="font-weight:500;margin-bottom:6px;color:var(--text-muted);">Product Lines</div>
+                    <div style="white-space:pre-wrap;"><?= htmlspecialchars($order['product_lines']) ?></div>
                 </div>
                 <?php endif; ?>
-            </div>
-        </div>
 
-        <!-- History Timeline -->
-        <div class="card">
-            <div class="card-header">
-                <h2 class="card-title">Activity History</h2>
-            </div>
-            <div class="card-body">
-                <?php if (empty($history)): ?>
-                <p class="text-muted text-sm">No activity recorded yet.</p>
-                <?php else: ?>
-                <div class="timeline">
-                    <?php foreach ($history as $h): ?>
-                    <div class="timeline-item">
-                        <div class="timeline-dot"></div>
-                        <div class="timeline-meta">
-                            <?= htmlspecialchars($h['user_name'] ?? 'System') ?> &mdash; <?= timeAgo($h['created_at']) ?>
-                        </div>
-                        <div class="timeline-content fw-600"><?= htmlspecialchars($h['action']) ?></div>
-                        <?php if ($h['old_status'] && $h['new_status']): ?>
-                        <div class="text-sm text-muted mt-4">
-                            <span class="<?= getStatusBadgeClass($h['old_status']) ?>"><?= ucfirst($h['old_status']) ?></span>
-                            &rarr;
-                            <span class="<?= getStatusBadgeClass($h['new_status']) ?>"><?= ucfirst($h['new_status']) ?></span>
-                        </div>
-                        <?php endif; ?>
-                        <?php if ($h['note']): ?>
-                        <div class="text-sm text-muted mt-4"><?= htmlspecialchars($h['note']) ?></div>
-                        <?php endif; ?>
+                <?php if (!empty($customFields) && !empty($cfValues)): ?>
+                <div style="margin-top:16px;">
+                    <div style="font-weight:500;margin-bottom:8px;color:var(--text-muted);">Custom Fields</div>
+                    <?php foreach ($customFields as $cf):
+                        $val = $cfValues[$cf['id']] ?? '';
+                        if ($val === '' || $val === null) continue; ?>
+                    <div style="display:flex;gap:16px;padding:4px 0;">
+                        <span style="color:var(--text-muted);min-width:160px;"><?= htmlspecialchars($cf['field_label']) ?></span>
+                        <span><?= $cf['field_type'] === 'checkbox' ? ($val ? 'Yes' : 'No') : htmlspecialchars($val) ?></span>
                     </div>
                     <?php endforeach; ?>
                 </div>
                 <?php endif; ?>
             </div>
         </div>
+
+        <!-- Stage Progress -->
+        <?php if (!empty($allStages)): ?>
+        <div class="card" style="margin-bottom:20px;">
+            <div class="card-header"><h2 class="card-title">Stage Progress</h2></div>
+            <div class="card-body">
+                <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                    <?php foreach ($allStages as $s):
+                        $isCurrent = (int)$order['current_stage'] === (int)$s['id'];
+                        $opacity   = $isCurrent ? '1' : '0.35';
+                    ?>
+                    <span style="background:<?= htmlspecialchars($s['color']) ?>;color:#fff;padding:4px 12px;border-radius:12px;font-size:0.8em;opacity:<?= $opacity ?>;<?= $isCurrent ? 'box-shadow:0 0 0 2px #000;' : '' ?>">
+                        <?= htmlspecialchars($s['name']) ?>
+                    </span>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <!-- Stage History -->
+        <?php if (!empty($history)): ?>
+        <div class="card">
+            <div class="card-header"><h2 class="card-title">Stage History</h2></div>
+            <div class="card-body" style="padding:0;">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Stage</th>
+                            <th>Entered</th>
+                            <th>Completed</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($history as $h): ?>
+                    <tr>
+                        <td>
+                            <span class="stage-badge" style="background:<?= htmlspecialchars($h['color']) ?>;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.8em;">
+                                <?= htmlspecialchars($h['stage_name']) ?>
+                            </span>
+                        </td>
+                        <td><?= formatDate($h['entered_at']) ?></td>
+                        <td><?= $h['completed_at'] ? formatDate($h['completed_at']) : '<em style="color:var(--text-muted)">In progress</em>' ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <?php endif; ?>
     </div>
 
-    <!-- Sidebar panel -->
+    <!-- Sidebar: QR + Quick Info -->
     <div>
-        <?php if ($isAdmin): ?>
+        <div class="card" style="margin-bottom:20px;">
+            <div class="card-header"><h2 class="card-title">QR Code</h2></div>
+            <div class="card-body" style="text-align:center;">
+                <img src="<?= htmlspecialchars(getQrImageUrl($order['qr_code_hash'], 180)) ?>"
+                     alt="QR Code" style="max-width:180px;">
+                <div style="margin-top:10px;">
+                    <a href="<?= rtrim(APP_URL, '/') ?>/orders/qr.php?hash=<?= htmlspecialchars($order['qr_code_hash']) ?>"
+                       target="_blank" class="btn btn-secondary btn-sm">Open QR Page</a>
+                </div>
+            </div>
+        </div>
+
+        <?php if ($waUrl): ?>
         <div class="card">
-            <div class="card-header"><h3 class="card-title">Update Status</h3></div>
+            <div class="card-header"><h2 class="card-title">WhatsApp Notification</h2></div>
             <div class="card-body">
-                <form method="POST" action="">
-                    <?= csrfField() ?>
-                    <div class="form-group">
-                        <label class="form-label">New Status</label>
-                        <select name="new_status" class="form-control">
-                            <?php foreach (['pending','processing','completed','cancelled'] as $s): ?>
-                            <option value="<?= $s ?>" <?= $order['status'] === $s ? 'selected' : '' ?>><?= ucfirst($s) ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Note (optional)</label>
-                        <textarea name="status_note" class="form-control" rows="2" placeholder="Reason for status change..."></textarea>
-                    </div>
-                    <button type="submit" class="btn btn-primary w-100">Update Status</button>
-                </form>
+                <p style="font-size:0.85em;color:var(--text-muted);margin-bottom:12px;">
+                    Send the current stage update to the customer via WhatsApp.
+                </p>
+                <a href="<?= htmlspecialchars($waUrl) ?>" target="_blank"
+                   class="btn btn-sm" style="background:#25d366;color:#fff;border-color:#25d366;width:100%;text-align:center;display:block;">
+                    Open WhatsApp
+                </a>
             </div>
         </div>
         <?php endif; ?>

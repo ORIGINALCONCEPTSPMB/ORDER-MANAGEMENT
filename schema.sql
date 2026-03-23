@@ -1,5 +1,5 @@
--- Order Management System Database Schema
--- Version: 1.0.0
+-- Order Management System Database Schema (ProcessFlow Manager)
+-- Version: 2.0.0
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 SET time_zone = "+00:00";
@@ -59,49 +59,78 @@ CREATE TABLE IF NOT EXISTS `sessions` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
--- Table: orders
+-- Table: pf_orders
 -- --------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `orders` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `order_number` VARCHAR(20) NOT NULL,
-  `customer_name` VARCHAR(255) NOT NULL,
-  `customer_email` VARCHAR(255) NOT NULL DEFAULT '',
-  `customer_phone` VARCHAR(20) NOT NULL DEFAULT '',
-  `description` TEXT NOT NULL,
-  `status` ENUM('pending','processing','completed','cancelled') NOT NULL DEFAULT 'pending',
-  `priority` ENUM('low','medium','high') NOT NULL DEFAULT 'medium',
-  `assigned_to` INT NULL DEFAULT NULL,
-  `notes` TEXT,
-  `created_by` INT NOT NULL,
-  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+CREATE TABLE IF NOT EXISTS `pf_orders` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `customer_name` VARCHAR(255) NOT NULL DEFAULT '',
+  `business_name` VARCHAR(255) NOT NULL DEFAULT '',
+  `whatsapp` VARCHAR(50) NOT NULL DEFAULT '',
+  `invoice_number` VARCHAR(100) NOT NULL DEFAULT '',
+  `job_details` TEXT NOT NULL,
+  `product_lines` LONGTEXT NULL,
+  `current_stage` INT UNSIGNED NULL,
+  `is_archived` TINYINT(1) NOT NULL DEFAULT 0,
+  `archived_at` DATETIME NULL,
+  `created_at` DATETIME NOT NULL,
+  `updated_at` DATETIME NOT NULL,
+  `qr_code_hash` VARCHAR(64) NOT NULL DEFAULT '',
+  `custom_fields` LONGTEXT NULL,
+  `created_by` INT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `order_number` (`order_number`),
-  KEY `idx_status` (`status`),
-  KEY `idx_priority` (`priority`),
-  KEY `idx_assigned_to` (`assigned_to`),
-  KEY `idx_created_by` (`created_by`),
-  CONSTRAINT `fk_order_assigned` FOREIGN KEY (`assigned_to`) REFERENCES `users` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_order_created` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`)
+  KEY `current_stage` (`current_stage`),
+  KEY `qr_code_hash` (`qr_code_hash`),
+  KEY `is_archived` (`is_archived`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
--- Table: order_history
+-- Table: pf_stages
 -- --------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `order_history` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `order_id` INT NOT NULL,
-  `user_id` INT NOT NULL,
-  `action` VARCHAR(100) NOT NULL,
-  `old_status` VARCHAR(50) NULL DEFAULT NULL,
-  `new_status` VARCHAR(50) NULL DEFAULT NULL,
-  `note` TEXT NULL DEFAULT NULL,
-  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+CREATE TABLE IF NOT EXISTS `pf_stages` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `name` VARCHAR(255) NOT NULL DEFAULT '',
+  `order_position` INT NOT NULL DEFAULT 0,
+  `color` VARCHAR(20) NOT NULL DEFAULT '#3498db',
+  `whatsapp_template` TEXT NOT NULL,
+  `is_active` TINYINT(1) NOT NULL DEFAULT 1,
   PRIMARY KEY (`id`),
-  KEY `idx_order_id` (`order_id`),
-  KEY `idx_user_id` (`user_id`),
-  CONSTRAINT `fk_oh_order` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_oh_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
+  KEY `order_position` (`order_position`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+-- Table: pf_stage_history
+-- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `pf_stage_history` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `order_id` INT UNSIGNED NOT NULL,
+  `stage_id` INT UNSIGNED NOT NULL,
+  `entered_at` DATETIME NOT NULL,
+  `completed_at` DATETIME NULL,
+  `notification_sent` TINYINT(1) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY `order_id` (`order_id`),
+  KEY `stage_id` (`stage_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+-- Table: pf_custom_fields
+-- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `pf_custom_fields` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `field_label` VARCHAR(255) NOT NULL DEFAULT '',
+  `field_type` ENUM('text','textarea','number','date','checkbox') NOT NULL DEFAULT 'text',
+  `is_required` TINYINT(1) NOT NULL DEFAULT 0,
+  `field_order` INT NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+-- Table: pf_settings
+-- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `pf_settings` (
+  `setting_key` VARCHAR(100) NOT NULL,
+  `setting_value` TEXT NULL,
+  PRIMARY KEY (`setting_key`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -140,3 +169,27 @@ VALUES (
   1,
   1
 );
+
+-- --------------------------------------------------------
+-- Default workflow stages
+-- --------------------------------------------------------
+INSERT IGNORE INTO `pf_stages` (`name`, `order_position`, `color`, `whatsapp_template`, `is_active`) VALUES
+('In Design', 1, '#3498db', 'Hi {customer_name}, your order #{order_id} for {business_name} is currently In Design. We will notify you when it progresses.', 1),
+('In Print Queue', 2, '#e67e22', 'Hi {customer_name}, your order #{order_id} for {business_name} is now In the Print Queue. We are getting it ready!', 1),
+('In Finishing', 3, '#9b59b6', 'Hi {customer_name}, your order #{order_id} for {business_name} is In Finishing. Almost there!', 1),
+('Ready for Collection', 4, '#27ae60', 'Hi {customer_name}, great news! Your order #{order_id} for {business_name} is Ready for Collection. Please come collect at your earliest convenience.', 1);
+
+-- --------------------------------------------------------
+-- Default settings
+-- --------------------------------------------------------
+INSERT IGNORE INTO `pf_settings` (`setting_key`, `setting_value`) VALUES
+('company_name', 'Your Company'),
+('company_phone', ''),
+('company_email', ''),
+('portal_title', 'Track Your Order'),
+('portal_intro', 'Enter your order ID and the last 4 digits of your WhatsApp number to track your order.'),
+('orders_per_page', '20'),
+('enable_whatsapp', '1'),
+('wa_default_country', '27'),
+('invoiceninja_url', ''),
+('invoiceninja_token', '');
