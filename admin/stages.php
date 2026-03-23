@@ -196,7 +196,7 @@ include __DIR__ . '/../includes/header.php';
             </div>
             <div class="d-flex gap-12">
                 <button type="submit" class="btn btn-primary">Save Changes</button>
-                <a href="admin/stages.php" class="btn btn-secondary">Cancel</a>
+                <a href="<?= rtrim(APP_URL, '/') ?>/admin/stages.php" class="btn btn-secondary">Cancel</a>
             </div>
         </form>
     </div>

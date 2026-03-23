@@ -46,10 +46,6 @@ if ($stage > 0) {
 
 $whereStr = 'WHERE ' . implode(' AND ', $where);
 
-// Count active and archived
-$countActive   = (int)$db->prepare('SELECT COUNT(*) FROM pf_orders o' . ($isAdmin ? '' : ' WHERE o.created_by = ' . (int)$currentUser['id']) . ($isAdmin ? ' WHERE o.is_archived=0' : ' AND o.is_archived=0'))->query()->fetchColumn();
-$countArchived = (int)$db->prepare('SELECT COUNT(*) FROM pf_orders o' . ($isAdmin ? '' : ' WHERE o.created_by = ' . (int)$currentUser['id']) . ($isAdmin ? ' WHERE o.is_archived=1' : ' AND o.is_archived=1'))->query()->fetchColumn();
-
 // Totals for tabs
 if ($isAdmin) {
     $countActive   = (int)$db->query('SELECT COUNT(*) FROM pf_orders WHERE is_archived=0')->fetchColumn();
