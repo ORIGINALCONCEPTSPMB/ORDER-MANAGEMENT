@@ -75,8 +75,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            // Update super_admin if custom credentials provided
+            // Update super_admin with configured credentials; clear plain-text password from session immediately
             $adminHash = password_hash($cfg['admin_pass'], PASSWORD_BCRYPT, ['cost'=>12]);
+            unset($_SESSION['install']['admin_pass']);
             $pdo->prepare(
                 "UPDATE users SET email=?, password_hash=?, first_name=?, last_name=? WHERE role='super_admin' LIMIT 1"
             )->execute([$cfg['admin_email'], $adminHash, $cfg['admin_first'], $cfg['admin_last']]);

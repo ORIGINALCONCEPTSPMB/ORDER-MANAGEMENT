@@ -1,6 +1,11 @@
 <?php
 /**
- * Email sending via SMTP with PHP mail() fallback
+ * Email sending via SMTP with PHP mail() fallback.
+ *
+ * Authentication note: SimpleSMTP uses AUTH LOGIN only, which is supported
+ * by the majority of commercial SMTP providers (Gmail, Mailgun, SendGrid, etc.).
+ * If your server requires AUTH PLAIN or XOAUTH2, use a full-featured library
+ * such as PHPMailer or SwiftMailer instead.
  */
 
 class SimpleSMTP {

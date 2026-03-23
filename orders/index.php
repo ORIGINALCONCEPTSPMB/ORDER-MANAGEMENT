@@ -54,9 +54,6 @@ if ($search !== '') {
 
 $whereClause = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
-$totalCount = (int) $db->prepare("SELECT COUNT(*) FROM orders o $whereClause")
-    ->execute($params) ? $db->prepare("SELECT COUNT(*) FROM orders o $whereClause")->execute($params) : 0;
-
 $countStmt = $db->prepare("SELECT COUNT(*) FROM orders o $whereClause");
 $countStmt->execute($params);
 $totalCount  = (int) $countStmt->fetchColumn();
