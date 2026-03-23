@@ -29,8 +29,8 @@ function generateToken(int $length = 32): string {
  * Generate a random 6-digit numeric code
  */
 function generateCode(int $length = 6): string {
-    $min = (int) str_pad('1', $length, '0');
-    $max = (int) str_pad('9', $length, '9');
+    $min = (int) pow(10, $length - 1);
+    $max = (int) pow(10, $length) - 1;
     return str_pad((string) random_int($min, $max), $length, '0', STR_PAD_LEFT);
 }
 

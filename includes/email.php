@@ -146,7 +146,7 @@ class SimpleSMTP {
                 return false;
             }
 
-            $boundary = '----=_Part_' . md5(uniqid('', true));
+            $boundary = '----=_Part_' . bin2hex(random_bytes(16));
             $headers  = "From: =?UTF-8?B?" . base64_encode($fromName) . "?= <{$from}>\r\n";
             $headers .= "To: {$to}\r\n";
             $headers .= "Subject: =?UTF-8?B?" . base64_encode($subject) . "?=\r\n";

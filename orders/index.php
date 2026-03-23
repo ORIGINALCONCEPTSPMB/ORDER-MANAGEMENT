@@ -22,7 +22,9 @@ $db = getDb();
 $filterStatus   = $_GET['status']   ?? '';
 $filterPriority = $_GET['priority'] ?? '';
 $search         = trim($_GET['search'] ?? '');
-$sort           = in_array($_GET['sort'] ?? '', ['order_number','customer_name','status','priority','created_at']) ? $_GET['sort'] : 'created_at';
+$allowedSortColumns = ['order_number' => 'o.order_number', 'customer_name' => 'o.customer_name', 'status' => 'o.status', 'priority' => 'o.priority', 'created_at' => 'o.created_at'];
+$sortKey        = $_GET['sort'] ?? 'created_at';
+$sort           = array_key_exists($sortKey, $allowedSortColumns) ? $allowedSortColumns[$sortKey] : 'o.created_at';
 $dir            = (($_GET['dir'] ?? '') === 'asc') ? 'ASC' : 'DESC';
 $page           = max(1, (int) ($_GET['page'] ?? 1));
 $perPage        = 20;
@@ -67,7 +69,7 @@ $stmt = $db->prepare(
      LEFT JOIN users u ON u.id = o.created_by
      LEFT JOIN users a ON a.id = o.assigned_to
      $whereClause
-     ORDER BY o.$sort $dir
+     ORDER BY $sort $dir
      LIMIT $perPage OFFSET $offset"
 );
 $stmt->execute($params);
@@ -95,8 +97,8 @@ $pageTitle = 'All Orders';
 include __DIR__ . '/../includes/header.php';
 
 function buildPageUrl(int $p): string {
-    global $filterStatus, $filterPriority, $search, $sort, $dir;
-    return 'index.php?' . http_build_query(['status'=>$filterStatus,'priority'=>$filterPriority,'search'=>$search,'sort'=>$sort,'dir'=>$dir,'page'=>$p]);
+    global $filterStatus, $filterPriority, $search, $sortKey, $dir;
+    return 'index.php?' . http_build_query(['status'=>$filterStatus,'priority'=>$filterPriority,'search'=>$search,'sort'=>$sortKey,'dir'=>$dir,'page'=>$p]);
 }
 ?>
 

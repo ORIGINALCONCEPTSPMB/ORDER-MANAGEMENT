@@ -133,10 +133,7 @@ include __DIR__ . '/../includes/auth_header.php';
                 </div>
             </div>
 
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
-                <label style="display:flex;align-items:center;gap:6px;font-size:.875rem;cursor:pointer;">
-                    <input type="checkbox" name="remember_me" value="1"> Remember me
-                </label>
+            <div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:20px;">
                 <a href="forgot-password.php" style="font-size:.875rem;">Forgot password?</a>
             </div>
 

@@ -42,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['install']['admin_first'] = trim($_POST['admin_first'] ?? 'Super');
         $_SESSION['install']['admin_last']  = trim($_POST['admin_last']  ?? 'Admin');
         $_SESSION['install']['admin_email'] = trim($_POST['admin_email'] ?? 'admin@example.com');
-        $_SESSION['install']['admin_pass']  = $_POST['admin_pass']       ?? 'Admin@123!';
+        $_SESSION['install']['admin_pass']  = $_POST['admin_pass']       ?? '';
         $step = 4;
     } elseif ($step === 4) {
         $_SESSION['install']['app_url']      = rtrim(trim($_POST['app_url']      ?? ''), '/');
@@ -270,7 +270,7 @@ body { background:#f0f4f8; }
                 </div>
                 <div class="form-group">
                     <label class="form-label">Admin Password <span class="required">*</span></label>
-                    <input type="password" name="admin_pass" class="form-control" required value="<?= htmlspecialchars($_SESSION['install']['admin_pass'] ?? 'Admin@123!') ?>">
+                    <input type="password" name="admin_pass" class="form-control" required placeholder="Enter a strong password">
                     <div class="form-hint">Min 8 chars with uppercase, lowercase, and number.</div>
                 </div>
                 <button type="submit" class="btn btn-primary btn-lg">Continue &rarr;</button>
