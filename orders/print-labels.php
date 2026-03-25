@@ -34,16 +34,21 @@ $companyName = getSetting('company_name', $appName);
 <meta charset="UTF-8">
 <title>QR Labels &mdash; <?= htmlspecialchars($appName) ?></title>
 <script src="<?= rtrim(APP_URL, '/') ?>/assets/js/qrcode.min.js"></script>
+<!-- Updated dynamically by applySize() when the user changes label size. -->
+<style id="page-size-style">@media print { @page { size: 50mm 40mm; margin: 1mm; } }</style>
 <style>
+:root { --lw: 50mm; --lh: 40mm; --lqr: 28mm; }
 * { box-sizing: border-box; }
 body { margin: 0; padding: 8mm; font-family: Arial, sans-serif; background: #f5f5f5; }
-.controls { text-align: center; padding: 12px; background: #fff; border-bottom: 1px solid #ccc; margin-bottom: 12px; }
-.controls button { background: #3a86ff; color: #fff; border: none; padding: 8px 24px; border-radius: 6px; cursor: pointer; font-size: 15px; margin: 0 6px; }
+.controls { text-align: center; padding: 12px; background: #fff; border-bottom: 1px solid #ccc; margin-bottom: 12px; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; }
+.controls button { background: #3a86ff; color: #fff; border: none; padding: 8px 24px; border-radius: 6px; cursor: pointer; font-size: 15px; }
 .controls button.outline { background: #fff; color: #3a86ff; border: 2px solid #3a86ff; }
+.controls label { font-size: 0.9em; color: #555; }
+.controls select { font-size: 0.9em; padding: 5px 10px; border: 1px solid #ccc; border-radius: 6px; }
 .labels-grid { display: flex; flex-wrap: wrap; gap: 4mm; justify-content: flex-start; }
 .label {
-    width: 50mm;
-    height: 40mm;
+    width: var(--lw);
+    height: var(--lh);
     background: #fff;
     border: 1px solid #ccc;
     border-radius: 2mm;
@@ -55,23 +60,29 @@ body { margin: 0; padding: 8mm; font-family: Arial, sans-serif; background: #f5f
     page-break-inside: avoid;
     overflow: hidden;
 }
-.label .qr-wrap { width: 28mm; height: 28mm; flex-shrink: 0; }
-.label .qr-wrap canvas, .label .qr-wrap img { width: 28mm !important; height: 28mm !important; }
+.label .qr-wrap { width: var(--lqr); height: var(--lqr); flex-shrink: 0; }
+.label .qr-wrap canvas, .label .qr-wrap img { width: var(--lqr) !important; height: var(--lqr) !important; }
 .label .linfo { text-align: center; font-size: 6.5pt; line-height: 1.3; width: 100%; }
 .label .linfo strong { font-size: 7.5pt; }
 @media print {
     .controls { display: none; }
     body { background: #fff; padding: 0; }
     .labels-grid { gap: 2mm; }
-    @page { size: auto; margin: 5mm; }
 }
 </style>
 </head>
 <body>
 <div class="controls no-print">
+    <label for="bulk-size">Label size:</label>
+    <select id="bulk-size" onchange="applySize(this.value)">
+        <option value="50x40">50 &times; 40 mm (small)</option>
+        <option value="62x29">62 &times; 29 mm (Brother DK)</option>
+        <option value="100x150">100 &times; 150 mm (shipping)</option>
+        <option value="a4">A4 — 210 &times; 297 mm</option>
+    </select>
     <button onclick="window.print()">&#x1F5A8; Print All Labels</button>
     <button class="outline" onclick="window.close()">Close</button>
-    <span style="margin-left:16px;color:#666;font-size:0.9em;"><?= count($orders) ?> label(s) &bull; 50mm &times; 40mm</span>
+    <span style="color:#666;font-size:0.9em;"><?= count($orders) ?> label(s)</span>
 </div>
 
 <div class="labels-grid" id="labels-grid">
@@ -91,6 +102,25 @@ body { margin: 0; padding: 8mm; font-family: Arial, sans-serif; background: #f5f
 
 <script>
 (function(){
+    var SIZES = {
+        '50x40':   { w: '50mm',  h: '40mm',  qr: '28mm' },
+        '62x29':   { w: '62mm',  h: '29mm',  qr: '20mm' },
+        '100x150': { w: '100mm', h: '150mm', qr: '80mm' },
+        'a4':      { w: '210mm', h: '297mm', qr: '130mm'}
+    };
+
+    window.applySize = function(key) {
+        var s = SIZES[key] || SIZES['50x40'];
+        var root = document.documentElement;
+        root.style.setProperty('--lw',  s.w);
+        root.style.setProperty('--lh',  s.h);
+        root.style.setProperty('--lqr', s.qr);
+        /* Update the @page size for print — CSS variables are not supported
+           inside @page rules, so we inject a fresh <style> element. */
+        document.getElementById('page-size-style').textContent =
+            '@media print { @page { size: ' + s.w + ' ' + s.h + '; margin: 1mm; } }';
+    };
+
     var orders = <?= json_encode(array_map(function($o) {
         return [
             'id'      => $o['id'],

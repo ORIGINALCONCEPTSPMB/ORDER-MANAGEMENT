@@ -280,7 +280,16 @@ include __DIR__ . '/../includes/header.php';
                     });
                 })();
                 </script>
-                <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
+                <div style="margin-top:10px;display:flex;gap:6px;align-items:center;justify-content:center;flex-wrap:wrap;">
+                    <label for="label-size" style="font-size:0.8em;color:var(--text-muted);white-space:nowrap;">Label size:</label>
+                    <select id="label-size" style="font-size:0.8em;padding:3px 6px;border:1px solid var(--border-color,#ddd);border-radius:6px;background:#fff;">
+                        <option value="50x40">50 &times; 40 mm (small)</option>
+                        <option value="62x29">62 &times; 29 mm (Brother DK)</option>
+                        <option value="100x150">100 &times; 150 mm (shipping)</option>
+                        <option value="a4">A4 — 210 &times; 297 mm</option>
+                    </select>
+                </div>
+                <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
                     <a href="<?= rtrim(APP_URL, '/') ?>/orders/qr.php?hash=<?= htmlspecialchars($order['qr_code_hash']) ?>"
                        target="_blank" class="btn btn-secondary btn-sm">Open QR Page</a>
                     <button onclick="printQrLabel(<?= $id ?>, <?= json_encode($order['customer_name']) ?>, <?= json_encode($order['invoice_number'] ?: '') ?>)"
@@ -291,52 +300,76 @@ include __DIR__ . '/../includes/header.php';
             </div>
         </div>
 <script>
-/* Extract the already-rendered QR code canvas as a PNG data URL so that
-   the print/PDF popup has zero external dependencies. */
+/* ── Label size definitions ────────────────────────────────────────────────── */
+var LABEL_SIZES = {
+    '50x40':   { w: '50mm',  h: '40mm',  qr: '28mm', margin: '2mm', label: '50×40 mm'  },
+    '62x29':   { w: '62mm',  h: '29mm',  qr: '20mm', margin: '2mm', label: '62×29 mm'  },
+    '100x150': { w: '100mm', h: '150mm', qr: '70mm', margin: '4mm', label: '100×150 mm'},
+    'a4':      { w: '210mm', h: '297mm', qr: '120mm',margin: '10mm',label: 'A4'        }
+};
+
+/* Extract the already-rendered QR canvas as a PNG data URL (no external request). */
 function getQrDataUrl() {
     var container = document.getElementById('qr-container');
-    if (!container) return null;
+    if (!container) return '';
     var canvas = container.querySelector('canvas');
     if (canvas) return canvas.toDataURL('image/png');
     var img = container.querySelector('img');
-    if (img && img.src) return img.src;
-    return null;
+    return (img && img.src) ? img.src : '';
 }
-function buildLabelHtml(orderId, customerName, invoiceNumber, qrDataUrl) {
-    var qrImgTag = qrDataUrl
-        ? '<img src="' + qrDataUrl + '" style="width:28mm;height:28mm;display:block;">'
-        : '<div style="width:28mm;height:28mm;background:#eee;line-height:28mm;text-align:center;font-size:7pt;">QR</div>';
-    var info = '<strong>Order #' + orderId + '</strong>'
-             + (invoiceNumber ? '<br>Inv: ' + invoiceNumber : '')
-             + '<br>' + customerName;
-    return '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>QR Label</title>'
+
+function getSelectedSize() {
+    var sel = document.getElementById('label-size');
+    return LABEL_SIZES[sel ? sel.value : '50x40'] || LABEL_SIZES['50x40'];
+}
+
+/* Build a self-contained HTML page for the label. */
+function buildLabelHtml(orderId, customerName, invoiceNumber, qrDataUrl, size) {
+    var bodyH = 'calc(' + size.h + ' - ' + size.margin + ' * 2)';
+    var qrTag = qrDataUrl
+        ? '<img src="' + qrDataUrl + '" style="width:' + size.qr + ';height:' + size.qr + ';display:block;" alt="QR">'
+        : '<div style="width:' + size.qr + ';height:' + size.qr + ';background:#eee;display:flex;align-items:center;justify-content:center;font-size:7pt;">QR</div>';
+    var info  = '<strong>Order #' + orderId + '</strong>'
+              + (invoiceNumber ? '<br>Inv: ' + invoiceNumber : '')
+              + '<br>' + customerName;
+    return '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Label</title>'
         + '<style>'
-        + '@page{size:50mm 40mm;margin:0}'
-        + 'body{margin:0;padding:2mm;font-family:Arial,sans-serif;font-size:7pt;}'
-        + '.lbl{display:flex;flex-direction:column;align-items:center;height:36mm;justify-content:space-between;}'
+        + '@page{size:' + size.w + ' ' + size.h + ';margin:0}'
+        + 'body{margin:0;padding:' + size.margin + ';font-family:Arial,sans-serif;font-size:7pt;height:' + bodyH + ';}'
+        + '.lbl{display:flex;flex-direction:column;align-items:center;height:100%;justify-content:space-between;}'
         + '.linfo{text-align:center;line-height:1.4;}'
-        + '</style>'
-        + '</head>'
-        + '<body onload="setTimeout(function(){window.focus();window.print();},150);">'
-        + '<div class="lbl">'
-        + '<div>' + qrImgTag + '</div>'
-        + '<div class="linfo">' + info + '</div>'
-        + '</div>'
-        + '</body></html>';
+        + '</style></head>'
+        + '<body><div class="lbl"><div>' + qrTag + '</div><div class="linfo">' + info + '</div></div></body></html>';
 }
+
+/* Print using a hidden iframe — works even when popup windows are blocked. */
+function printWithFrame(html) {
+    var old = document.getElementById('_qr_print_frame');
+    if (old) old.parentNode.removeChild(old);
+    var frame = document.createElement('iframe');
+    frame.id = '_qr_print_frame';
+    frame.setAttribute('aria-hidden', 'true');
+    frame.style.cssText = 'position:fixed;bottom:0;left:0;width:1px;height:1px;border:0;opacity:0;pointer-events:none;';
+    /* Register onload BEFORE setting srcdoc so the event is never missed. */
+    frame.onload = function() {
+        try {
+            frame.contentWindow.focus();
+            frame.contentWindow.print();
+        } catch(e) { console.error('Print error:', e); }
+        setTimeout(function() {
+            if (frame && frame.parentNode) frame.parentNode.removeChild(frame);
+        }, 3000);
+    };
+    document.body.appendChild(frame);
+    frame.srcdoc = html;
+}
+
 function printQrLabel(orderId, customerName, invoiceNumber) {
-    var qrDataUrl = getQrDataUrl();
-    var w = window.open('', '_blank', 'width=420,height=380');
-    if (!w) { alert('Allow pop-ups for this site to print QR labels.'); return; }
-    w.document.write(buildLabelHtml(orderId, customerName, invoiceNumber, qrDataUrl));
-    w.document.close();
+    printWithFrame(buildLabelHtml(orderId, customerName, invoiceNumber, getQrDataUrl(), getSelectedSize()));
 }
+
 function downloadQrPdf(orderId, customerName, invoiceNumber) {
-    var qrDataUrl = getQrDataUrl();
-    var w = window.open('', '_blank', 'width=420,height=380');
-    if (!w) { alert('Allow pop-ups for this site to download the QR PDF.'); return; }
-    w.document.write(buildLabelHtml(orderId, customerName, invoiceNumber, qrDataUrl));
-    w.document.close();
+    printWithFrame(buildLabelHtml(orderId, customerName, invoiceNumber, getQrDataUrl(), getSelectedSize()));
 }
 </script>
 
