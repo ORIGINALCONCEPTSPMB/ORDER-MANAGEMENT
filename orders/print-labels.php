@@ -90,10 +90,7 @@ body { margin: 0; padding: 8mm; font-family: Arial, sans-serif; background: #f5f
     <div class="label">
         <div class="qr-wrap" id="qr-<?= $order['id'] ?>"></div>
         <div class="linfo">
-            <strong>Order #<?= $order['id'] ?></strong>
-            <?php if ($order['invoice_number']): ?>
-            <br><?= htmlspecialchars($order['invoice_number']) ?>
-            <?php endif; ?>
+            <strong>Order <?= htmlspecialchars(getOrderDisplayNumber($order)) ?></strong>
             <br><?= htmlspecialchars($order['customer_name']) ?>
         </div>
     </div>

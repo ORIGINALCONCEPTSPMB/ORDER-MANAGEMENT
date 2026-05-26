@@ -336,7 +336,7 @@ include __DIR__ . '/../includes/header.php';
                     <thead>
                         <tr>
                             <th><input type="checkbox" id="select-all" onchange="document.querySelectorAll('[name=order_ids]').forEach(c=>c.checked=this.checked)"></th>
-                            <th>ID</th>
+                            <th>Order #</th>
                             <th>Customer</th>
                             <th>Business</th>
                             <th>Invoice #</th>
@@ -354,7 +354,7 @@ include __DIR__ . '/../includes/header.php';
                     <?php foreach ($orders as $o): ?>
                     <tr>
                         <td><input type="checkbox" name="order_ids[]" value="<?= $o['id'] ?>"></td>
-                        <td><a href="<?= rtrim(APP_URL, '/') ?>/orders/view.php?id=<?= $o['id'] ?>" class="fw-600">#<?= $o['id'] ?></a></td>
+                        <td><a href="<?= rtrim(APP_URL, '/') ?>/orders/view.php?id=<?= $o['id'] ?>" class="fw-600"><?= htmlspecialchars(getOrderDisplayNumber($o)) ?></a></td>
                         <td><?= htmlspecialchars($o['customer_name']) ?></td>
                         <td><?= htmlspecialchars($o['business_name'] ?: '—') ?></td>
                         <td><?= htmlspecialchars($o['invoice_number'] ?: '—') ?></td>

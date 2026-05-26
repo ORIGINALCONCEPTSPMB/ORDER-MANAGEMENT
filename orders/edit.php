@@ -33,6 +33,11 @@ if (!$isAdmin && $order['created_by'] != $currentUser['id']) {
 
 $stages       = $db->query('SELECT * FROM pf_stages WHERE is_active=1 ORDER BY order_position ASC')->fetchAll();
 $customFields = getCustomFields();
+// Load order field visibility/required settings
+$orderFieldsEnabled  = json_decode(getSetting('order_fields_enabled',  '{}'), true) ?: [];
+$orderFieldsRequired = json_decode(getSetting('order_fields_required', '{}'), true) ?: [];
+$fieldEnabled  = function(string $k) use ($orderFieldsEnabled)  { return !isset($orderFieldsEnabled[$k])  || $orderFieldsEnabled[$k]; };
+$fieldRequired = function(string $k) use ($orderFieldsRequired) { return !empty($orderFieldsRequired[$k]); };
 $error        = '';
 $waRedirect   = null;
 
@@ -61,18 +66,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
         $error = 'Invalid security token. Please try again.';
     } else {
         $customerName  = trim($_POST['customer_name']  ?? '');
-        $businessName  = trim($_POST['business_name']  ?? '');
-        $whatsapp      = trim($_POST['whatsapp']        ?? '');
-        $invoiceNumber = trim($_POST['invoice_number']  ?? '');
-        $jobDetails    = trim($_POST['job_details']     ?? '');
-        $productLines  = trim($_POST['product_lines']   ?? '');
+        $businessName  = $fieldEnabled('business_name') ? trim($_POST['business_name'] ?? '') : (string)$order['business_name'];
+        $whatsapp      = $fieldEnabled('whatsapp') ? trim($_POST['whatsapp'] ?? '') : (string)$order['whatsapp'];
+        $invoiceNumber = $fieldEnabled('invoice_number') ? trim($_POST['invoice_number'] ?? '') : (string)$order['invoice_number'];
+        $jobDetails    = $fieldEnabled('job_details') ? trim($_POST['job_details'] ?? '') : (string)$order['job_details'];
+        $productLines  = $fieldEnabled('product_lines') ? trim($_POST['product_lines'] ?? '') : (string)($order['product_lines'] ?? '');
         $newStage      = !empty($_POST['current_stage']) ? (int)$_POST['current_stage'] : null;
         $sendWa        = !empty($_POST['send_whatsapp']);
 
         if (empty($customerName)) {
             $error = 'Customer name is required.';
-        } elseif (empty($jobDetails)) {
+        } elseif ($fieldRequired('business_name') && empty($businessName)) {
+            $error = 'Business name is required.';
+        } elseif ($fieldRequired('whatsapp') && empty($whatsapp)) {
+            $error = 'WhatsApp number is required.';
+        } elseif ($fieldRequired('invoice_number') && empty($invoiceNumber)) {
+            $error = 'Order number is required.';
+        } elseif ($fieldRequired('job_details') && empty($jobDetails)) {
             $error = 'Job details are required.';
+        } elseif ($fieldRequired('product_lines') && empty($productLines)) {
+            $error = 'Product lines are required.';
         } else {
             $cfValues = [];
             foreach ($customFields as $cf) {
@@ -150,8 +163,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
 }
 
 $savedCf = getOrderCustomFields($order);
+$displayOrderNumber = getOrderDisplayNumber($order);
 
-$pageTitle = 'Edit Order #' . $id;
+$pageTitle = 'Edit Order ' . $displayOrderNumber;
 include __DIR__ . '/../includes/header.php';
 ?>
 
@@ -160,7 +174,7 @@ include __DIR__ . '/../includes/header.php';
     <span class="breadcrumb-sep">/</span>
     <a href="<?= rtrim(APP_URL, '/') ?>/orders/index.php">Orders</a>
     <span class="breadcrumb-sep">/</span>
-    <a href="<?= rtrim(APP_URL, '/') ?>/orders/view.php?id=<?= $id ?>">Order #<?= $id ?></a>
+    <a href="<?= rtrim(APP_URL, '/') ?>/orders/view.php?id=<?= $id ?>">Order <?= htmlspecialchars($displayOrderNumber) ?></a>
     <span class="breadcrumb-sep">/</span>
     <span class="breadcrumb-current">Edit</span>
 </nav>
@@ -171,7 +185,7 @@ include __DIR__ . '/../includes/header.php';
 
 <div class="card">
     <div class="card-header">
-        <h2 class="card-title">Edit Order #<?= $id ?></h2>
+        <h2 class="card-title">Edit Order <?= htmlspecialchars($displayOrderNumber) ?></h2>
         <?php if ($isAdmin): ?>
         <form method="POST" action="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>?id=<?= $id ?>" style="display:inline;">
             <?= csrfField() ?>
@@ -195,36 +209,50 @@ include __DIR__ . '/../includes/header.php';
                     <input type="text" id="customer_name" name="customer_name" class="form-control" required
                            value="<?= htmlspecialchars($_POST['customer_name'] ?? $order['customer_name']) ?>">
                 </div>
+                <?php if ($fieldEnabled('business_name')): ?>
                 <div class="form-group">
-                    <label class="form-label" for="business_name">Business Name</label>
+                    <label class="form-label" for="business_name">Business Name<?= $fieldRequired('business_name') ? ' <span class="required">*</span>' : '' ?></label>
                     <input type="text" id="business_name" name="business_name" class="form-control"
+                           <?= $fieldRequired('business_name') ? 'required' : '' ?>
                            value="<?= htmlspecialchars($_POST['business_name'] ?? $order['business_name']) ?>">
                 </div>
+                <?php endif; ?>
             </div>
 
             <div class="form-row">
+                <?php if ($fieldEnabled('whatsapp')): ?>
                 <div class="form-group">
-                    <label class="form-label" for="whatsapp">WhatsApp Number</label>
+                    <label class="form-label" for="whatsapp">WhatsApp Number<?= $fieldRequired('whatsapp') ? ' <span class="required">*</span>' : '' ?></label>
                     <input type="tel" id="whatsapp" name="whatsapp" class="form-control"
+                           <?= $fieldRequired('whatsapp') ? 'required' : '' ?>
                            value="<?= htmlspecialchars($_POST['whatsapp'] ?? $order['whatsapp']) ?>" placeholder="+27 82 123 4567">
                 </div>
+                <?php endif; ?>
+                <?php if ($fieldEnabled('invoice_number')): ?>
                 <div class="form-group">
-                    <label class="form-label" for="invoice_number">Invoice Number</label>
+                    <label class="form-label" for="invoice_number">Order Number (Invoice Number)<?= $fieldRequired('invoice_number') ? ' <span class="required">*</span>' : '' ?></label>
                     <input type="text" id="invoice_number" name="invoice_number" class="form-control"
+                           <?= $fieldRequired('invoice_number') ? 'required' : '' ?>
                            value="<?= htmlspecialchars($_POST['invoice_number'] ?? $order['invoice_number']) ?>">
                 </div>
+                <?php endif; ?>
             </div>
 
+            <?php if ($fieldEnabled('job_details')): ?>
             <div class="form-group">
-                <label class="form-label" for="job_details">Job Details <span class="required">*</span></label>
-                <textarea id="job_details" name="job_details" class="form-control" required rows="4"><?= htmlspecialchars($_POST['job_details'] ?? $order['job_details']) ?></textarea>
+                <label class="form-label" for="job_details">Job Details<?= $fieldRequired('job_details') ? ' <span class="required">*</span>' : '' ?></label>
+                <textarea id="job_details" name="job_details" class="form-control" <?= $fieldRequired('job_details') ? 'required' : '' ?> rows="4"><?= htmlspecialchars($_POST['job_details'] ?? $order['job_details']) ?></textarea>
             </div>
+            <?php endif; ?>
 
+            <?php if ($fieldEnabled('product_lines')): ?>
             <div class="form-group">
-                <label class="form-label" for="product_lines">Product Lines</label>
+                <label class="form-label" for="product_lines">Product Lines<?= $fieldRequired('product_lines') ? ' <span class="required">*</span>' : '' ?></label>
                 <textarea id="product_lines" name="product_lines" class="form-control" rows="3"
+                          <?= $fieldRequired('product_lines') ? 'required' : '' ?>
                           placeholder="One product per line"><?= htmlspecialchars($_POST['product_lines'] ?? $order['product_lines'] ?? '') ?></textarea>
             </div>
+            <?php endif; ?>
 
             <div class="form-row">
                 <div class="form-group">
@@ -240,7 +268,7 @@ include __DIR__ . '/../includes/header.php';
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <?php if ($order['whatsapp']): ?>
+                <?php if ($fieldEnabled('whatsapp') && $order['whatsapp']): ?>
                 <div class="form-group" style="display:flex;align-items:flex-end;">
                     <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding-bottom:8px;">
                         <input type="checkbox" name="send_whatsapp" value="1" <?= !empty($_POST['send_whatsapp']) ? 'checked' : '' ?>>

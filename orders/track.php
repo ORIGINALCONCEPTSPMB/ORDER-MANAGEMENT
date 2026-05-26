@@ -145,7 +145,7 @@ include __DIR__ . '/../includes/auth_header.php';
 <form method="POST" action="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>">
     <?php if ($trackMode === 'invoice_number_only'): ?>
     <div class="form-group">
-        <label class="form-label" for="invoice_number">Invoice Number</label>
+        <label class="form-label" for="invoice_number">Order Number (Invoice Number)</label>
         <input type="text" id="invoice_number" name="invoice_number" class="form-control" required
                value="<?= htmlspecialchars($_POST['invoice_number'] ?? '') ?>" placeholder="e.g. INV-0001">
     </div>
@@ -174,7 +174,7 @@ include __DIR__ . '/../includes/auth_header.php';
 <!-- Order Results -->
 <div style="margin-bottom:20px;">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
-        <h2 style="margin:0;font-size:1.2rem;">Order #<?= $order['id'] ?></h2>
+        <h2 style="margin:0;font-size:1.2rem;">Order <?= htmlspecialchars(getOrderDisplayNumber($order)) ?></h2>
         <?php if ($order['stage_name']): ?>
         <span class="stage-badge" style="background:<?= htmlspecialchars($order['stage_color']) ?>;color:#fff;padding:4px 12px;border-radius:12px;font-size:0.85em;">
             <?= htmlspecialchars($order['stage_name']) ?>
@@ -195,7 +195,7 @@ include __DIR__ . '/../includes/auth_header.php';
         <?php endif; ?>
         <?php if ($order['invoice_number']): ?>
         <tr>
-            <th style="text-align:left;padding:5px 0;color:#666;font-weight:500;">Invoice #</th>
+            <th style="text-align:left;padding:5px 0;color:#666;font-weight:500;">Order Number</th>
             <td><?= htmlspecialchars($order['invoice_number']) ?></td>
         </tr>
         <?php endif; ?>

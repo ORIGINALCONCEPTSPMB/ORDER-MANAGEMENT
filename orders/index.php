@@ -125,7 +125,7 @@ include __DIR__ . '/../includes/header.php';
             <table class="table">
                 <thead>
                     <tr>
-                        <th>ID</th>
+                        <th>Order #</th>
                         <th>Customer</th>
                         <th>Business</th>
                         <th>Invoice #</th>
@@ -147,7 +147,7 @@ include __DIR__ . '/../includes/header.php';
                 <?php else: ?>
                     <?php foreach ($orders as $order): ?>
                     <tr>
-                        <td><a href="<?= rtrim(APP_URL, '/') ?>/orders/view.php?id=<?= $order['id'] ?>" class="fw-600">#<?= $order['id'] ?></a></td>
+                        <td><a href="<?= rtrim(APP_URL, '/') ?>/orders/view.php?id=<?= $order['id'] ?>" class="fw-600"><?= htmlspecialchars(getOrderDisplayNumber($order)) ?></a></td>
                         <td><?= htmlspecialchars($order['customer_name']) ?></td>
                         <td><?= htmlspecialchars($order['business_name'] ?: '—') ?></td>
                         <td><?= htmlspecialchars($order['invoice_number'] ?: '—') ?></td>

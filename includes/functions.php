@@ -44,6 +44,17 @@ function generateOrderNumber(): string {
 }
 
 /**
+ * Get order number for display (invoice number first, fallback to internal ID).
+ */
+function getOrderDisplayNumber(array $order): string {
+    $invoiceNumber = trim((string)($order['invoice_number'] ?? ''));
+    if ($invoiceNumber !== '') {
+        return $invoiceNumber;
+    }
+    return '#' . (string)($order['id'] ?? '');
+}
+
+/**
  * Return a human-readable "time ago" string
  */
 function timeAgo(string $datetime): string {
@@ -227,9 +238,10 @@ function getWhatsAppUrl(string $phone, string $message): string {
  * Replace template placeholders with order data
  */
 function parseWhatsAppTemplate(string $template, array $order, string $stageName = ''): string {
+    $displayOrderNumber = getOrderDisplayNumber($order);
     $replacements = [
         '{customer_name}' => $order['customer_name'] ?? '',
-        '{order_id}'      => $order['id'] ?? '',
+        '{order_id}'      => $displayOrderNumber,
         '{business_name}' => $order['business_name'] ?? '',
         '{stage_name}'    => $stageName,
     ];

@@ -88,7 +88,8 @@ if (!empty($_SESSION['wa_redirect'])) {
     unset($_SESSION['wa_redirect']);
 }
 
-$pageTitle = 'Order #' . $id;
+$displayOrderNumber = getOrderDisplayNumber($order);
+$pageTitle = 'Order ' . $displayOrderNumber;
 include __DIR__ . '/../includes/header.php';
 ?>
 
@@ -101,7 +102,7 @@ include __DIR__ . '/../includes/header.php';
     <span class="breadcrumb-sep">/</span>
     <a href="<?= rtrim(APP_URL, '/') ?>/orders/index.php">Orders</a>
     <span class="breadcrumb-sep">/</span>
-    <span class="breadcrumb-current">Order #<?= $id ?></span>
+    <span class="breadcrumb-current">Order <?= htmlspecialchars($displayOrderNumber) ?></span>
 </nav>
 
 <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px;">
@@ -158,7 +159,7 @@ include __DIR__ . '/../includes/header.php';
                         </td>
                     </tr>
                     <tr>
-                        <th style="text-align:left;padding:8px 0;color:var(--text-muted);font-weight:500;">Invoice #</th>
+                        <th style="text-align:left;padding:8px 0;color:var(--text-muted);font-weight:500;">Order Number</th>
                         <td style="padding:8px 0;"><?= htmlspecialchars($order['invoice_number'] ?: '—') ?></td>
                     </tr>
                     <tr>
@@ -292,9 +293,9 @@ include __DIR__ . '/../includes/header.php';
                 <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
                     <a href="<?= rtrim(APP_URL, '/') ?>/orders/qr.php?hash=<?= htmlspecialchars($order['qr_code_hash']) ?>"
                        target="_blank" class="btn btn-secondary btn-sm">Open QR Page</a>
-                    <button onclick="printQrLabel(<?= $id ?>, <?= json_encode($order['customer_name']) ?>, <?= json_encode($order['invoice_number'] ?: '') ?>)"
+                    <button onclick="printQrLabel(<?= json_encode($displayOrderNumber) ?>, <?= json_encode($order['customer_name']) ?>)"
                             class="btn btn-secondary btn-sm">&#x1F5A8; Print Label</button>
-                    <button onclick="downloadQrPdf(<?= $id ?>, <?= json_encode($order['customer_name']) ?>, <?= json_encode($order['invoice_number'] ?: '') ?>)"
+                    <button onclick="downloadQrPdf(<?= json_encode($displayOrderNumber) ?>, <?= json_encode($order['customer_name']) ?>)"
                             class="btn btn-secondary btn-sm">&#8659; Download PDF</button>
                 </div>
             </div>
@@ -324,13 +325,12 @@ function getSelectedSize() {
 }
 
 /* Build a self-contained HTML page for the label. */
-function buildLabelHtml(orderId, customerName, invoiceNumber, qrDataUrl, size) {
+function buildLabelHtml(orderNumber, customerName, qrDataUrl, size) {
     var bodyH = 'calc(' + size.h + ' - ' + size.margin + ' * 2)';
     var qrTag = qrDataUrl
         ? '<img src="' + qrDataUrl + '" style="width:' + size.qr + ';height:' + size.qr + ';display:block;" alt="QR">'
         : '<div style="width:' + size.qr + ';height:' + size.qr + ';background:#eee;display:flex;align-items:center;justify-content:center;font-size:7pt;">QR</div>';
-    var info  = '<strong>Order #' + orderId + '</strong>'
-              + (invoiceNumber ? '<br>Inv: ' + invoiceNumber : '')
+    var info  = '<strong>Order ' + orderNumber + '</strong>'
               + '<br>' + customerName;
     return '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Label</title>'
         + '<style>'
@@ -364,12 +364,12 @@ function printWithFrame(html) {
     frame.srcdoc = html;
 }
 
-function printQrLabel(orderId, customerName, invoiceNumber) {
-    printWithFrame(buildLabelHtml(orderId, customerName, invoiceNumber, getQrDataUrl(), getSelectedSize()));
+function printQrLabel(orderNumber, customerName) {
+    printWithFrame(buildLabelHtml(orderNumber, customerName, getQrDataUrl(), getSelectedSize()));
 }
 
-function downloadQrPdf(orderId, customerName, invoiceNumber) {
-    printWithFrame(buildLabelHtml(orderId, customerName, invoiceNumber, getQrDataUrl(), getSelectedSize()));
+function downloadQrPdf(orderNumber, customerName) {
+    printWithFrame(buildLabelHtml(orderNumber, customerName, getQrDataUrl(), getSelectedSize()));
 }
 </script>
 

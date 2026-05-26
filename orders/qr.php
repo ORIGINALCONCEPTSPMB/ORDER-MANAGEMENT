@@ -59,7 +59,8 @@ if (!empty($_GET['updated'])) {
 }
 
 $appName   = defined('APP_NAME') ? APP_NAME : 'Order Management';
-$pageTitle = $order ? 'Order #' . $order['id'] : 'Order Not Found';
+$displayOrderNumber = $order ? getOrderDisplayNumber($order) : '';
+$pageTitle = $order ? 'Order ' . $displayOrderNumber : 'Order Not Found';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -102,7 +103,7 @@ $pageTitle = $order ? 'Order #' . $order['id'] : 'Order Not Found';
 
     <!-- Order Info -->
     <div class="qr-card">
-        <h2>Order #<?= $order['id'] ?></h2>
+        <h2>Order <?= htmlspecialchars($displayOrderNumber) ?></h2>
         <table style="width:100%;border-collapse:collapse;font-size:0.9em;">
             <tr>
                 <th style="text-align:left;padding:4px 0;color:#666;font-weight:500;width:45%;">Customer</th>
@@ -116,7 +117,7 @@ $pageTitle = $order ? 'Order #' . $order['id'] : 'Order Not Found';
             <?php endif; ?>
             <?php if ($order['invoice_number']): ?>
             <tr>
-                <th style="text-align:left;padding:4px 0;color:#666;font-weight:500;">Invoice #</th>
+                <th style="text-align:left;padding:4px 0;color:#666;font-weight:500;">Order Number</th>
                 <td><?= htmlspecialchars($order['invoice_number']) ?></td>
             </tr>
             <?php endif; ?>

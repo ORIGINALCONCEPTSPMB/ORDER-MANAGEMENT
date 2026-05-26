@@ -39,12 +39,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (empty($customerName)) {
             $error = 'Customer name is required.';
+        } elseif ($fieldRequired('business_name') && empty($businessName)) {
+            $error = 'Business name is required.';
         } elseif ($fieldRequired('whatsapp') && empty($whatsapp)) {
             $error = 'WhatsApp number is required.';
         } elseif ($fieldRequired('invoice_number') && empty($invoiceNumber)) {
-            $error = 'Invoice number is required.';
+            $error = 'Order number is required.';
         } elseif ($fieldRequired('job_details') && empty($jobDetails)) {
             $error = 'Job details are required.';
+        } elseif ($fieldRequired('product_lines') && empty($productLines)) {
+            $error = 'Product lines are required.';
         } else {
             // Collect custom field values
             $cfValues = [];
@@ -86,7 +90,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     )->execute([$orderId, $currentStage, $now]);
                 }
 
-                setFlash('success', 'Order #' . $orderId . ' created successfully.');
+                $displayOrderNumber = getOrderDisplayNumber([
+                    'id' => $orderId,
+                    'invoice_number' => $invoiceNumber,
+                ]);
+                setFlash('success', 'Order ' . $displayOrderNumber . ' created successfully.');
                 redirect(rtrim(APP_URL, '/') . '/orders/view.php?id=' . $orderId);
             }
         }
@@ -142,10 +150,10 @@ include __DIR__ . '/../includes/header.php';
                 <?php endif; ?>
                 <?php if ($fieldEnabled('invoice_number')): ?>
                 <div class="form-group">
-                    <label class="form-label" for="invoice_number">Invoice Number<?= $fieldRequired('invoice_number') ? ' <span class="required">*</span>' : '' ?></label>
+                    <label class="form-label" for="invoice_number">Order Number (Invoice Number)<?= $fieldRequired('invoice_number') ? ' <span class="required">*</span>' : '' ?></label>
                     <input type="text" id="invoice_number" name="invoice_number" class="form-control"
                            <?= $fieldRequired('invoice_number') ? 'required' : '' ?>
-                           value="<?= htmlspecialchars($post['invoice_number'] ?? '') ?>" placeholder="INV-0001">
+                           value="<?= htmlspecialchars($post['invoice_number'] ?? '') ?>" placeholder="e.g. INV-0001">
                 </div>
                 <?php endif; ?>
             </div>
