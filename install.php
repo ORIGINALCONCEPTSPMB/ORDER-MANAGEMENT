@@ -11,6 +11,50 @@ $step  = (int) ($_GET['step'] ?? 1);
 $error = '';
 $info  = '';
 
+function detectRequestScheme(): string {
+    if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+        return 'https';
+    }
+    if (!empty($_SERVER['HTTP_X_FORWARDED_PROTO'])) {
+        $proto = strtolower(trim((string)$_SERVER['HTTP_X_FORWARDED_PROTO']));
+        if ($proto === 'https' || $proto === 'http') {
+            return $proto;
+        }
+    }
+    return 'http';
+}
+
+function getInstallPathPrefix(): string {
+    $scriptName = str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '/install.php'));
+    $dir = rtrim(dirname($scriptName), '/');
+    return ($dir === '' || $dir === '.') ? '' : $dir;
+}
+
+function buildDefaultAppUrl(): string {
+    $host = trim((string)($_SERVER['HTTP_HOST'] ?? 'yourdomain.com'));
+    $host = $host !== '' ? $host : 'yourdomain.com';
+    return detectRequestScheme() . '://' . $host . getInstallPathPrefix();
+}
+
+function normalizeAppUrl(string $rawUrl): string {
+    $url = rtrim(trim($rawUrl), '/');
+    if ($url === '') {
+        return '';
+    }
+    $parts = parse_url($url);
+    if ($parts === false || empty($parts['scheme']) || empty($parts['host'])) {
+        return '';
+    }
+    $path = trim((string)($parts['path'] ?? ''));
+    if ($path === '' || $path === '/') {
+        $installPath = getInstallPathPrefix();
+        if ($installPath !== '') {
+            $url .= $installPath;
+        }
+    }
+    return rtrim($url, '/');
+}
+
 // Steps: 1=requirements, 2=database, 3=admin, 4=email, 5=install
 
 // --- POST handling ---
@@ -45,15 +89,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['install']['admin_pass']  = $_POST['admin_pass']       ?? '';
         $step = 4;
     } elseif ($step === 4) {
-        $_SESSION['install']['app_url']      = rtrim(trim($_POST['app_url']      ?? ''), '/');
-        $_SESSION['install']['app_name']     = trim($_POST['app_name']     ?? 'Order Management System');
-        $_SESSION['install']['mail_host']    = trim($_POST['mail_host']    ?? '');
-        $_SESSION['install']['mail_port']    = (int) ($_POST['mail_port']  ?? 587);
-        $_SESSION['install']['mail_user']    = trim($_POST['mail_user']    ?? '');
-        $_SESSION['install']['mail_pass']    = $_POST['mail_pass']         ?? '';
-        $_SESSION['install']['mail_from']    = trim($_POST['mail_from']    ?? '');
-        $_SESSION['install']['mail_name']    = trim($_POST['mail_name']    ?? '');
-        $step = 5;
+        $normalizedAppUrl = normalizeAppUrl((string)($_POST['app_url'] ?? ''));
+        if ($normalizedAppUrl === '') {
+            $error = 'Please enter a valid Application URL, e.g. https://yourdomain.com/admin';
+            $step  = 4;
+        } else {
+            $_SESSION['install']['app_url'] = $normalizedAppUrl;
+            $_SESSION['install']['app_name']     = trim($_POST['app_name']     ?? 'Order Management System');
+            $_SESSION['install']['mail_host']    = trim($_POST['mail_host']    ?? '');
+            $_SESSION['install']['mail_port']    = (int) ($_POST['mail_port']  ?? 587);
+            $_SESSION['install']['mail_user']    = trim($_POST['mail_user']    ?? '');
+            $_SESSION['install']['mail_pass']    = $_POST['mail_pass']         ?? '';
+            $_SESSION['install']['mail_from']    = trim($_POST['mail_from']    ?? '');
+            $_SESSION['install']['mail_name']    = trim($_POST['mail_name']    ?? '');
+            $step = 5;
+        }
     } elseif ($step === 5) {
         // Perform installation
         try {
@@ -289,8 +339,9 @@ body { background:#f0f4f8; }
                 <div class="form-group">
                     <label class="form-label">Application URL <span class="required">*</span></label>
                     <input type="url" name="app_url" class="form-control" required
-                           value="<?= htmlspecialchars($_SESSION['install']['app_url'] ?? ('https://' . ($_SERVER['HTTP_HOST'] ?? 'yourdomain.com'))) ?>"
-                           placeholder="https://yourdomain.com">
+                           value="<?= htmlspecialchars($_SESSION['install']['app_url'] ?? buildDefaultAppUrl()) ?>"
+                           placeholder="https://yourdomain.com/admin">
+                    <div class="form-hint">If installed in a folder (for example <code>/admin</code>), include that folder in the URL.</div>
                 </div>
                 <h3 style="margin:20px 0 12px;font-size:1rem;">SMTP Email (optional)</h3>
                 <div class="form-row">

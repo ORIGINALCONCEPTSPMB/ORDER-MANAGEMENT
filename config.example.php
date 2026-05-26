@@ -8,7 +8,7 @@ define('DB_CHARSET', 'utf8mb4');
 
 // Application
 define('APP_NAME', 'Order Management System');
-define('APP_URL', 'https://yourdomain.com');
+define('APP_URL', 'https://yourdomain.com/admin'); // Include subfolder if installed in one (e.g. /admin)
 define('APP_SECRET', 'change-this-to-random-32-char-string');
 
 // Email (SMTP)

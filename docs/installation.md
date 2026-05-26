@@ -49,7 +49,8 @@ This guide covers installing the Order Management System on a cPanel shared host
    ```
    https://yourdomain.com/install.php
    ```
-   (Replace `yourdomain.com` with your actual domain or subdomain.)
+   (Replace `yourdomain.com` with your actual domain or subdomain.  
+   If installed in `public_html/admin`, use `https://yourdomain.com/admin/install.php`.)
 
 2. **Step 1 — Requirements Check:** The wizard verifies PHP extensions and permissions. All items must show a green checkmark.
 
@@ -57,7 +58,9 @@ This guide covers installing the Order Management System on a cPanel shared host
 
 4. **Step 3 — Admin Account:** Set your super admin email and password. Use a strong password (min 8 chars, uppercase, lowercase, number).
 
-5. **Step 4 — Application & Email:** Enter your application URL and optional SMTP settings for email delivery. You can skip SMTP — the system will fall back to PHP `mail()`.
+5. **Step 4 — Application & Email:** Enter your application URL and optional SMTP settings for email delivery.  
+   If you installed into a folder, include it in the URL (e.g. `https://duzisigns.co.za/admin`).  
+   You can skip SMTP — the system will fall back to PHP `mail()`.
 
 6. **Step 5 — Install:** Review settings and click **Install Now**. The wizard writes `config.php` and runs the database schema.
 
@@ -96,6 +99,10 @@ The `.htaccess` file blocks direct access to `config.php` and `*.sql` files. Mak
 Navigate to:
 ```
 https://yourdomain.com/auth/login.php
+```
+If installed in `/admin`, use:
+```
+https://yourdomain.com/admin/auth/login.php
 ```
 
 Use the admin email and password you configured in Step 3. You will be sent a 2FA verification code to your email (requires working email/SMTP).

@@ -57,10 +57,12 @@ A self-hosted standalone PHP platform converted from the **ProcessFlow Manager W
 Upload all files to your web server's document root or a subdirectory.
 
 ### 2. Run the Installer
-Navigate to `https://yourdomain.com/install.php` in your browser and follow the 5-step wizard.
+Navigate to `https://yourdomain.com/install.php` in your browser and follow the 5-step wizard.  
+If you uploaded into a subfolder like `public_html/admin`, use `https://yourdomain.com/admin/install.php`.
 
 ### 3. Log In
-Go to `https://yourdomain.com/auth/login.php` and sign in.
+Go to `https://yourdomain.com/auth/login.php` and sign in.  
+If installed in `/admin`, use `https://yourdomain.com/admin/auth/login.php`.
 
 ---
 
@@ -130,4 +132,3 @@ These are the defaults in `schema.sql`. You can override them in **Step 3** of t
 ## License
 
 See [LICENSE.md](LICENSE.md).
-
