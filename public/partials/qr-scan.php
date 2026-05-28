@@ -44,6 +44,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 		$progress_pct = $total_stages > 0
 			? (int) round( ( ( $current_pos + 1 ) / $total_stages ) * 100 )
 			: 0;
+		$order_display_number = ! empty( $order->invoice_number ) ? $order->invoice_number : $order->id;
 		?>
 
 		<!-- Header bar -->
@@ -51,8 +52,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 			<div class="pf-qr-scan-header__left">
 				<div class="pf-qr-scan-header__order-id">
 					<?php
-					/* translators: %d = order ID */
-					printf( esc_html__( 'Order #%d', 'processflow-manager' ), (int) $order->id );
+					/* translators: %s = order number */
+					printf( esc_html__( 'Order #%s', 'processflow-manager' ), esc_html( (string) $order_display_number ) );
 					?>
 				</div>
 				<div class="pf-qr-scan-header__customer">

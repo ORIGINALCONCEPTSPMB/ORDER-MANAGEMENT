@@ -56,7 +56,7 @@ class ProcessFlow_WhatsApp {
 	 * Replace all merge tags in a template string.
 	 *
 	 * Supported tags: {customer_name}, {business_name}, {stage_name},
-	 *                 {order_id}, {date}, {time}.
+	 *                 {order_id}, {order_number}, {invoice_number}, {date}, {time}.
 	 *
 	 * @param string    $template  Raw template with merge tags.
 	 * @param object    $order_data Order row object.
@@ -64,11 +64,16 @@ class ProcessFlow_WhatsApp {
 	 * @return string
 	 */
 	public function parse_template( string $template, $order_data, $stage_data ): string {
+		$invoice_number = isset( $order_data->invoice_number ) ? (string) $order_data->invoice_number : '';
+		$order_number   = '' !== trim( $invoice_number ) ? $invoice_number : ( isset( $order_data->id ) ? (string) $order_data->id : '' );
+
 		$replacements = array(
 			'{customer_name}' => isset( $order_data->customer_name ) ? $order_data->customer_name : '',
 			'{business_name}' => isset( $order_data->business_name ) ? $order_data->business_name : '',
 			'{stage_name}'    => isset( $stage_data->name ) ? $stage_data->name : '',
-			'{order_id}'      => isset( $order_data->id ) ? (string) $order_data->id : '',
+			'{order_id}'      => $order_number,
+			'{order_number}'  => $order_number,
+			'{invoice_number}'=> $invoice_number,
 			'{date}'          => current_time( 'd/m/Y' ),
 			'{time}'          => current_time( 'H:i' ),
 		);

@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 $title = $atts['title'] ?? __( 'Track Your Order', 'processflow-manager' );
-$intro = $settings->get_setting( 'portal_intro', __( 'Enter your Order ID and the last 4 digits of your WhatsApp number to check your order status.', 'processflow-manager' ) );
+$intro = $settings->get_setting( 'portal_intro', __( 'Enter your order number and the last 4 digits of your WhatsApp number to check your order status.', 'processflow-manager' ) );
 ?>
 <div class="pf-portal">
 	<h2 class="pf-portal__title"><?php echo esc_html( $title ); ?></h2>
@@ -29,14 +29,13 @@ $intro = $settings->get_setting( 'portal_intro', __( 'Enter your Order ID and th
 		<form id="pf-portal-login-form" novalidate>
 			<div class="pf-field">
 				<label for="pf-portal-order-id">
-					<?php esc_html_e( 'Order ID', 'processflow-manager' ); ?> *
+					<?php esc_html_e( 'Order Number (Invoice #)', 'processflow-manager' ); ?> *
 				</label>
 				<input
-					type="number"
+					type="text"
 					id="pf-portal-order-id"
-					placeholder="<?php esc_attr_e( 'e.g. 42', 'processflow-manager' ); ?>"
+					placeholder="<?php esc_attr_e( 'e.g. INV-001', 'processflow-manager' ); ?>"
 					required
-					min="1"
 				>
 			</div>
 			<div class="pf-field">

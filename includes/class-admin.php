@@ -126,12 +126,27 @@ class ProcessFlow_Admin {
 			'ajax_url'               => admin_url( 'admin-ajax.php' ),
 			'processflow_ajax_nonce' => wp_create_nonce( 'processflow_admin_nonce' ),
 			'confirm_delete'         => __( 'Are you sure you want to delete this item? This cannot be undone.', 'processflow-manager' ),
+			'order_form_features'    => $this->get_order_form_features(),
 			'strings'                => array(
 				'saving'  => __( 'Saving…', 'processflow-manager' ),
 				'saved'   => __( 'Saved!', 'processflow-manager' ),
 				'error'   => __( 'An error occurred. Please try again.', 'processflow-manager' ),
 				'loading' => __( 'Loading…', 'processflow-manager' ),
 			),
+		);
+	}
+
+	/**
+	 * Build order-form feature toggles for JS.
+	 *
+	 * @return array
+	 */
+	private function get_order_form_features(): array {
+		return array(
+			'business_name' => (bool) $this->settings->get_setting( 'order_form_business_name', 1 ),
+			'stage'         => (bool) $this->settings->get_setting( 'order_form_stage', 1 ),
+			'product_lines' => (bool) $this->settings->get_setting( 'order_form_product_lines', 1 ),
+			'job_details'   => (bool) $this->settings->get_setting( 'order_form_job_details', 1 ),
 		);
 	}
 
@@ -178,6 +193,7 @@ class ProcessFlow_Admin {
 				'ajax_url'              => admin_url( 'admin-ajax.php' ),
 				'processflow_ajax_nonce' => wp_create_nonce( 'processflow_admin_nonce' ),
 				'confirm_delete'        => __( 'Are you sure you want to delete this item? This cannot be undone.', 'processflow-manager' ),
+				'order_form_features'   => $this->get_order_form_features(),
 				'strings'               => array(
 					'saving'  => __( 'Saving…', 'processflow-manager' ),
 					'saved'   => __( 'Saved!', 'processflow-manager' ),
@@ -1026,18 +1042,36 @@ class ProcessFlow_Admin {
 			'portal_intro',
 			'orders_per_page',
 			'enable_whatsapp',
+			'order_form_business_name',
+			'order_form_stage',
+			'order_form_product_lines',
+			'order_form_job_details',
 			'invoiceninja_url',
 			'invoiceninja_token',
 		);
+		$boolean_fields = array(
+			'enable_whatsapp',
+			'order_form_business_name',
+			'order_form_stage',
+			'order_form_product_lines',
+			'order_form_job_details',
+		);
 
 		foreach ( $allowed as $key ) {
-			if ( isset( $_POST[ $key ] ) ) {
-				$value = sanitize_text_field( wp_unslash( $_POST[ $key ] ) );
-				if ( 'invoiceninja_url' === $key ) {
-					$value = esc_url_raw( wp_unslash( $_POST[ $key ] ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
-				}
-				$this->settings->update_setting( $key, $value );
+			if ( in_array( $key, $boolean_fields, true ) ) {
+				$this->settings->update_setting( $key, isset( $_POST[ $key ] ) ? 1 : 0 );
+				continue;
 			}
+
+			if ( ! isset( $_POST[ $key ] ) ) {
+				continue;
+			}
+
+			$value = sanitize_text_field( wp_unslash( $_POST[ $key ] ) );
+			if ( 'invoiceninja_url' === $key ) {
+				$value = esc_url_raw( wp_unslash( $_POST[ $key ] ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
+			}
+			$this->settings->update_setting( $key, $value );
 		}
 
 		// Handle password change separately.

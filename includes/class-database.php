@@ -86,6 +86,28 @@ class ProcessFlow_Database {
 	}
 
 	/**
+	 * Retrieve a single order by invoice number.
+	 *
+	 * @param string $invoice_number Invoice number.
+	 * @return object|null
+	 */
+	public function get_order_by_invoice_number( string $invoice_number ) {
+		global $wpdb;
+
+		$invoice_number = sanitize_text_field( $invoice_number );
+		if ( '' === $invoice_number ) {
+			return null;
+		}
+
+		return $wpdb->get_row( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+			$wpdb->prepare(
+				"SELECT * FROM {$wpdb->prefix}processflow_orders WHERE invoice_number = %s ORDER BY id DESC LIMIT 1",
+				$invoice_number
+			)
+		);
+	}
+
+	/**
 	 * Retrieve a paginated, filtered list of orders.
 	 *
 	 * @param array $args {

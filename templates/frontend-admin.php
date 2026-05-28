@@ -165,6 +165,12 @@ if ( ! in_array( $active_tab, $allowed_tabs, true ) ) {
 		'ajax_url'               => admin_url( 'admin-ajax.php' ),
 		'processflow_ajax_nonce' => wp_create_nonce( 'processflow_admin_nonce' ),
 		'confirm_delete'         => __( 'Are you sure you want to delete this item? This cannot be undone.', 'processflow-manager' ),
+		'order_form_features'    => array(
+			'business_name' => (bool) $settings->get_setting( 'order_form_business_name', 1 ),
+			'stage'         => (bool) $settings->get_setting( 'order_form_stage', 1 ),
+			'product_lines' => (bool) $settings->get_setting( 'order_form_product_lines', 1 ),
+			'job_details'   => (bool) $settings->get_setting( 'order_form_job_details', 1 ),
+		),
 		'strings'                => array(
 			'saving'  => __( 'Saving…', 'processflow-manager' ),
 			'saved'   => __( 'Saved!', 'processflow-manager' ),
@@ -479,7 +485,7 @@ if ( ! in_array( $active_tab, $allowed_tabs, true ) ) {
 							<div class="pf-form-group">
 								<label for="pf-stage-template"><?php esc_html_e( 'WhatsApp Template', 'processflow-manager' ); ?></label>
 								<textarea id="pf-stage-template" name="whatsapp_template" rows="4"></textarea>
-								<p class="pf-hint"><?php esc_html_e( 'Merge tags:', 'processflow-manager' ); ?> <code>{customer_name}</code> <code>{business_name}</code> <code>{stage_name}</code> <code>{order_id}</code></p>
+								<p class="pf-hint"><?php esc_html_e( 'Merge tags:', 'processflow-manager' ); ?> <code>{customer_name}</code> <code>{business_name}</code> <code>{stage_name}</code> <code>{order_id}</code> <code>{order_number}</code> <code>{invoice_number}</code></p>
 							</div>
 							<div style="display:flex;gap:10px;flex-wrap:wrap;">
 								<button type="submit" class="pf-btn pf-btn--primary"><?php esc_html_e( 'Add Stage', 'processflow-manager' ); ?></button>
@@ -860,6 +866,26 @@ if ( ! in_array( $active_tab, $allowed_tabs, true ) ) {
 							<div class="pf-form-group">
 								<label><?php esc_html_e( 'Orders Per Page', 'processflow-manager' ); ?></label>
 								<input type="number" name="orders_per_page" min="5" max="100" value="<?php echo esc_attr( $settings->get_setting( 'orders_per_page', 20 ) ); ?>" style="max-width:100px;">
+							</div>
+							<hr style="margin:20px 0;">
+							<div class="pf-form-group">
+								<label style="display:block;"><?php esc_html_e( 'Order Form Features', 'processflow-manager' ); ?></label>
+								<label style="display:block;margin:4px 0;">
+									<input type="checkbox" name="order_form_business_name" value="1" <?php checked( (int) $settings->get_setting( 'order_form_business_name', 1 ), 1 ); ?>>
+									<?php esc_html_e( 'Show Business Name field', 'processflow-manager' ); ?>
+								</label>
+								<label style="display:block;margin:4px 0;">
+									<input type="checkbox" name="order_form_stage" value="1" <?php checked( (int) $settings->get_setting( 'order_form_stage', 1 ), 1 ); ?>>
+									<?php esc_html_e( 'Show Stage selector', 'processflow-manager' ); ?>
+								</label>
+								<label style="display:block;margin:4px 0;">
+									<input type="checkbox" name="order_form_product_lines" value="1" <?php checked( (int) $settings->get_setting( 'order_form_product_lines', 1 ), 1 ); ?>>
+									<?php esc_html_e( 'Show Product Lines section', 'processflow-manager' ); ?>
+								</label>
+								<label style="display:block;margin:4px 0;">
+									<input type="checkbox" name="order_form_job_details" value="1" <?php checked( (int) $settings->get_setting( 'order_form_job_details', 1 ), 1 ); ?>>
+									<?php esc_html_e( 'Show Job Details field', 'processflow-manager' ); ?>
+								</label>
 							</div>
 							<button type="submit" class="pf-btn pf-btn--primary"><?php esc_html_e( 'Save Settings', 'processflow-manager' ); ?></button>
 						</form>

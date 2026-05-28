@@ -161,19 +161,22 @@ class ProcessFlow_Public {
 	}
 
 	/**
-	 * Validate portal login (order ID + last 4 digits of WhatsApp).
+	 * Validate portal login (invoice/order number + last 4 WhatsApp digits).
 	 */
 	public function ajax_portal_login() {
 		check_ajax_referer( 'processflow_public_nonce', 'nonce' );
 
-		$order_id    = isset( $_POST['order_id'] ) ? absint( $_POST['order_id'] ) : 0;
+		$order_ref   = isset( $_POST['order_id'] ) ? sanitize_text_field( wp_unslash( $_POST['order_id'] ) ) : '';
 		$wa_last4    = isset( $_POST['wa_last4'] ) ? sanitize_text_field( wp_unslash( $_POST['wa_last4'] ) ) : '';
 
-		if ( ! $order_id || strlen( $wa_last4 ) !== 4 || ! ctype_digit( $wa_last4 ) ) {
-			wp_send_json_error( array( 'message' => __( 'Please enter a valid Order ID and the last 4 digits of your WhatsApp number.', 'processflow-manager' ) ) );
+		if ( '' === $order_ref || strlen( $wa_last4 ) !== 4 || ! ctype_digit( $wa_last4 ) ) {
+			wp_send_json_error( array( 'message' => __( 'Please enter a valid order number and the last 4 digits of your WhatsApp number.', 'processflow-manager' ) ) );
 		}
 
-		$order = $this->db->get_order( $order_id );
+		$order = $this->db->get_order_by_invoice_number( $order_ref );
+		if ( ! $order && ctype_digit( $order_ref ) ) {
+			$order = $this->db->get_order( absint( $order_ref ) );
+		}
 		if ( ! $order ) {
 			wp_send_json_error( array( 'message' => __( 'Order not found.', 'processflow-manager' ) ) );
 		}
@@ -190,7 +193,7 @@ class ProcessFlow_Public {
 
 		wp_send_json_success( array(
 			'token'    => $token,
-			'order_id' => $order_id,
+			'order_id' => (int) $order->id,
 		) );
 	}
 

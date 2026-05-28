@@ -59,7 +59,7 @@ Visitors are shown a password-protected login form. Set (or change) the password
 [processflow_user_portal]
 [processflow_user_portal title="Check Your Print Job"]
 ```
-Customers enter their **Order ID** and the **last 4 digits of their WhatsApp number** to view live status.
+Customers enter their **Order Number / Invoice #** and the **last 4 digits of their WhatsApp number** to view live status.
 
 ---
 
@@ -82,7 +82,9 @@ Each stage can have its own WhatsApp message template. The following merge tags 
 | `{customer_name}` | Customer full name |
 | `{business_name}` | Business / company name |
 | `{stage_name}` | Current stage name |
-| `{order_id}` | Numeric order ID |
+| `{order_id}` | Customer-facing order number (invoice number, fallback to numeric ID) |
+| `{order_number}` | Customer-facing order number (invoice number, fallback to numeric ID) |
+| `{invoice_number}` | Invoice number |
 | `{date}` | Current date `d/m/Y` |
 | `{time}` | Current time `H:i` |
 

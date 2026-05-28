@@ -57,9 +57,13 @@ class ProcessFlow_Settings {
 			'company_phone'      => '',
 			'company_email'      => get_option( 'admin_email' ),
 			'portal_title'       => __( 'Track Your Order', 'processflow-manager' ),
-			'portal_intro'       => __( 'Enter your Order ID and the last 4 digits of your WhatsApp number to check your order status.', 'processflow-manager' ),
+			'portal_intro'       => __( 'Enter your order number and the last 4 digits of your WhatsApp number to check your order status.', 'processflow-manager' ),
 			'orders_per_page'    => 20,
 			'enable_whatsapp'    => 1,
+			'order_form_business_name' => 1,
+			'order_form_stage'         => 1,
+			'order_form_product_lines' => 1,
+			'order_form_job_details'   => 1,
 		);
 	}
 

@@ -125,6 +125,7 @@
 
 		renderOrder(data) {
 			const { order, history, stages, wa_url } = data;
+			const displayOrderNumber = order.invoice_number ? String(order.invoice_number) : String(order.id);
 
 			// ---- Progress ------------------------------------------- //
 			const totalStages   = stages.length;
@@ -163,8 +164,8 @@
 			<div class="pf-order-card">
 				<div class="pf-order-card__header">
 					<div>
-						<div class="pf-order-card__id">Order #${this.escHtml(String(order.id))}
-							<button class="pf-pub-btn pf-pub-btn--outline pf-pub-btn--sm pf-copy-btn" data-copy="${order.id}" style="margin-left:8px;vertical-align:middle;">&#128203; Copy</button>
+						<div class="pf-order-card__id">Order #${this.escHtml(displayOrderNumber)}
+							<button class="pf-pub-btn pf-pub-btn--outline pf-pub-btn--sm pf-copy-btn" data-copy="${displayOrderNumber.replace(/"/g, '&quot;')}" style="margin-left:8px;vertical-align:middle;">&#128203; Copy</button>
 						</div>
 						<div class="pf-order-card__customer">${this.escHtml(order.customer_name)} – ${this.escHtml(order.business_name)}</div>
 					</div>

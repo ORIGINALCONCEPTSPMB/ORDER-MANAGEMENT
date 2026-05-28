@@ -31,6 +31,15 @@
 		ajaxUrl:  processflowAdmin.ajax_url,
 		strings:  processflowAdmin.strings,
 		confirm:  processflowAdmin.confirm_delete,
+		orderFormFeatures: Object.assign(
+			{
+				business_name: true,
+				stage: true,
+				product_lines: true,
+				job_details: true,
+			},
+			processflowAdmin.order_form_features || {}
+		),
 
 		// -------------------------------------------------------------- //
 		// Bootstrap                                                        //
@@ -212,6 +221,45 @@
 			let stageOptions = '<option value="0">— No stage —</option>' + stages.map(s =>
 				`<option value="${s.id}">${s.name}</option>`
 			).join('');
+			const showBusinessName = !!this.orderFormFeatures.business_name;
+			const showStage = !!this.orderFormFeatures.stage;
+			const showProductLines = !!this.orderFormFeatures.product_lines;
+			const showJobDetails = !!this.orderFormFeatures.job_details;
+
+			const businessNameSection = showBusinessName
+				? `<div class="pf-form-group">
+							<label>Business Name</label>
+							<input type="text" name="business_name">
+						</div>`
+				: '';
+			const stageSection = showStage
+				? `<div class="pf-form-group">
+							<label>Stage</label>
+							<select name="current_stage">${stageOptions}</select>
+						</div>`
+				: '';
+			const productLinesSection = showProductLines
+				? `<div class="pf-form-group">
+							<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+								<label style="margin:0;">Product Lines</label>
+								<button type="button" id="pf-add-product-line" class="pf-btn pf-btn--outline pf-btn--sm">+ Add Line</button>
+							</div>
+							<div id="pf-product-lines">
+								<div class="pf-product-line" style="display:grid;grid-template-columns:1fr 70px 90px auto;gap:6px;margin-bottom:6px;align-items:center;">
+									<input type="text"   placeholder="Description" class="pl-desc" style="width:100%;">
+									<input type="number" placeholder="Qty"         class="pl-qty"  min="0" step="1"    value="1" style="width:100%;">
+									<input type="number" placeholder="Unit Price"  class="pl-price" min="0" step="0.01" value="0" style="width:100%;">
+									<button type="button" class="pf-btn pf-btn--danger pf-btn--sm pf-remove-product-line">✕</button>
+								</div>
+							</div>
+						</div>`
+				: '';
+			const jobDetailsSection = showJobDetails
+				? `<div class="pf-form-group">
+							<label>Job Details / Notes</label>
+							<textarea name="job_details" rows="2"></textarea>
+						</div>`
+				: '';
 
 			let html = `
 			<div class="pf-modal">
@@ -230,36 +278,14 @@
 							<label>Customer Name *</label>
 							<input type="text" name="customer_name" required>
 						</div>
-						<div class="pf-form-group">
-							<label>Business Name</label>
-							<input type="text" name="business_name">
-						</div>
+						${businessNameSection}
 						<div class="pf-form-group">
 							<label>WhatsApp Number * <span style="font-weight:normal;color:#666">(e.g. +27821234567)</span></label>
 							<input type="text" name="whatsapp" placeholder="+27821234567" required>
 						</div>
-						<div class="pf-form-group">
-							<label>Stage</label>
-							<select name="current_stage">${stageOptions}</select>
-						</div>
-						<div class="pf-form-group">
-							<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-								<label style="margin:0;">Product Lines</label>
-								<button type="button" id="pf-add-product-line" class="pf-btn pf-btn--outline pf-btn--sm">+ Add Line</button>
-							</div>
-							<div id="pf-product-lines">
-								<div class="pf-product-line" style="display:grid;grid-template-columns:1fr 70px 90px auto;gap:6px;margin-bottom:6px;align-items:center;">
-									<input type="text"   placeholder="Description" class="pl-desc" style="width:100%;">
-									<input type="number" placeholder="Qty"         class="pl-qty"  min="0" step="1"    value="1" style="width:100%;">
-									<input type="number" placeholder="Unit Price"  class="pl-price" min="0" step="0.01" value="0" style="width:100%;">
-									<button type="button" class="pf-btn pf-btn--danger pf-btn--sm pf-remove-product-line">✕</button>
-								</div>
-							</div>
-						</div>
-						<div class="pf-form-group">
-							<label>Job Details / Notes</label>
-							<textarea name="job_details" rows="2"></textarea>
-						</div>
+						${stageSection}
+						${productLinesSection}
+						${jobDetailsSection}
 					</form>
 				</div>
 				<div class="pf-modal__footer">

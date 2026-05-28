@@ -85,6 +85,7 @@ $stages = $db->get_stages();
 							<?php esc_html_e( 'Available merge tags:', 'processflow-manager' ); ?>
 							<code>{customer_name}</code> <code>{business_name}</code>
 							<code>{stage_name}</code> <code>{order_id}</code>
+							<code>{order_number}</code> <code>{invoice_number}</code>
 							<code>{date}</code> <code>{time}</code>
 						</p>
 					</div>

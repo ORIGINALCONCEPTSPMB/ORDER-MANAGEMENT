@@ -46,7 +46,7 @@ $qr_scan_page_url = ( $qr_scan_page_id && get_post( $qr_scan_page_id ) ) ? get_p
 				<h3 class="pf-card__title"><?php esc_html_e( 'Company Details', 'processflow-manager' ); ?></h3>
 			</div>
 			<div class="pf-card__body">
-				<form id="pf-settings-form">
+				<form class="pf-settings-form" data-notice="#pf-settings-notice">
 					<div class="pf-form-group">
 						<label><?php esc_html_e( 'Company Name', 'processflow-manager' ); ?></label>
 						<input type="text" name="company_name"
@@ -79,6 +79,26 @@ $qr_scan_page_url = ( $qr_scan_page_id && get_post( $qr_scan_page_id ) ) ? get_p
 						<input type="number" name="orders_per_page" min="5" max="100"
 							value="<?php echo esc_attr( $settings->get_setting( 'orders_per_page', 20 ) ); ?>" style="max-width:100px;">
 					</div>
+					<hr style="margin:20px 0;">
+					<div class="pf-form-group">
+						<label style="display:block;"><?php esc_html_e( 'Order Form Features', 'processflow-manager' ); ?></label>
+						<label style="display:block;margin:4px 0;">
+							<input type="checkbox" name="order_form_business_name" value="1" <?php checked( (int) $settings->get_setting( 'order_form_business_name', 1 ), 1 ); ?>>
+							<?php esc_html_e( 'Show Business Name field', 'processflow-manager' ); ?>
+						</label>
+						<label style="display:block;margin:4px 0;">
+							<input type="checkbox" name="order_form_stage" value="1" <?php checked( (int) $settings->get_setting( 'order_form_stage', 1 ), 1 ); ?>>
+							<?php esc_html_e( 'Show Stage selector', 'processflow-manager' ); ?>
+						</label>
+						<label style="display:block;margin:4px 0;">
+							<input type="checkbox" name="order_form_product_lines" value="1" <?php checked( (int) $settings->get_setting( 'order_form_product_lines', 1 ), 1 ); ?>>
+							<?php esc_html_e( 'Show Product Lines section', 'processflow-manager' ); ?>
+						</label>
+						<label style="display:block;margin:4px 0;">
+							<input type="checkbox" name="order_form_job_details" value="1" <?php checked( (int) $settings->get_setting( 'order_form_job_details', 1 ), 1 ); ?>>
+							<?php esc_html_e( 'Show Job Details field', 'processflow-manager' ); ?>
+						</label>
+					</div>
 
 					<button type="submit" class="pf-btn pf-btn--primary">
 						<?php esc_html_e( 'Save Settings', 'processflow-manager' ); ?>
@@ -98,7 +118,7 @@ $qr_scan_page_url = ( $qr_scan_page_id && get_post( $qr_scan_page_id ) ) ? get_p
 				<p style="color:#555;margin-top:0;">
 					<?php esc_html_e( 'This password is used to protect the front-end admin dashboard shortcode. It is separate from your WordPress user account.', 'processflow-manager' ); ?>
 				</p>
-				<form id="pf-settings-form">
+				<form class="pf-settings-form" data-notice="#pf-settings-notice">
 					<div class="pf-form-group">
 						<label><?php esc_html_e( 'New Password', 'processflow-manager' ); ?></label>
 						<input type="password" name="new_password" autocomplete="new-password">
