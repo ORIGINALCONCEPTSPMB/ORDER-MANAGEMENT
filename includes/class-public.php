@@ -161,16 +161,15 @@ class ProcessFlow_Public {
 	}
 
 	/**
-	 * Validate portal login (invoice/order number + last 4 WhatsApp digits).
+	 * Validate portal login (legacy endpoint kept for backwards compatibility).
 	 */
 	public function ajax_portal_login() {
 		check_ajax_referer( 'processflow_public_nonce', 'nonce' );
 
 		$order_ref   = isset( $_POST['order_id'] ) ? sanitize_text_field( wp_unslash( $_POST['order_id'] ) ) : '';
-		$wa_last4    = isset( $_POST['wa_last4'] ) ? sanitize_text_field( wp_unslash( $_POST['wa_last4'] ) ) : '';
 
-		if ( '' === $order_ref || strlen( $wa_last4 ) !== 4 || ! ctype_digit( $wa_last4 ) ) {
-			wp_send_json_error( array( 'message' => __( 'Please enter a valid order number and the last 4 digits of your WhatsApp number.', 'processflow-manager' ) ) );
+		if ( '' === $order_ref ) {
+			wp_send_json_error( array( 'message' => __( 'Please enter a valid order number.', 'processflow-manager' ) ) );
 		}
 
 		$order = $this->db->get_order_by_invoice_number( $order_ref );
@@ -181,15 +180,9 @@ class ProcessFlow_Public {
 			wp_send_json_error( array( 'message' => __( 'Order not found.', 'processflow-manager' ) ) );
 		}
 
-		// Compare last 4 digits of stored WhatsApp.
-		$stored_digits = substr( preg_replace( '/[^0-9]/', '', $order->whatsapp ), -4 );
-		if ( $stored_digits !== $wa_last4 ) {
-			wp_send_json_error( array( 'message' => __( 'Details do not match our records.', 'processflow-manager' ) ) );
-		}
-
 		// Issue a short-lived transient session.
 		$token = wp_generate_password( 32, false );
-		set_transient( 'processflow_portal_session_' . $token, $order_id, HOUR_IN_SECONDS * 2 );
+		set_transient( 'processflow_portal_session_' . $token, (int) $order->id, HOUR_IN_SECONDS * 2 );
 
 		wp_send_json_success( array(
 			'token'    => $token,
@@ -243,16 +236,34 @@ class ProcessFlow_Public {
 	}
 
 	/**
-	 * Return order status and history for an authenticated portal session.
+	 * Return order status for public tracking by invoice/order number.
+	 *
+	 * Anyone can see queue/progress. Admin-authenticated viewers can also see
+	 * internal details such as notes and full order metadata.
 	 */
 	public function ajax_lookup_order() {
 		check_ajax_referer( 'processflow_public_nonce', 'nonce' );
 
+		$order_ref = isset( $_POST['order_id'] ) ? sanitize_text_field( wp_unslash( $_POST['order_id'] ) ) : '';
 		$token    = isset( $_POST['token'] ) ? sanitize_text_field( wp_unslash( $_POST['token'] ) ) : '';
-		$order_id = (int) get_transient( 'processflow_portal_session_' . $token );
+		$order_id = 0;
+
+		if ( '' !== $order_ref ) {
+			$order = $this->db->get_order_by_invoice_number( $order_ref );
+			if ( ! $order && ctype_digit( $order_ref ) ) {
+				$order = $this->db->get_order( absint( $order_ref ) );
+			}
+			if ( ! $order ) {
+				wp_send_json_error( array( 'message' => __( 'Order not found.', 'processflow-manager' ) ) );
+			}
+			$order_id = (int) $order->id;
+		} elseif ( '' !== $token ) {
+			// Backward-compatible token flow for older portal JS.
+			$order_id = (int) get_transient( 'processflow_portal_session_' . $token );
+		}
 
 		if ( ! $order_id ) {
-			wp_send_json_error( array( 'message' => __( 'Session expired. Please log in again.', 'processflow-manager' ) ) );
+			wp_send_json_error( array( 'message' => __( 'Please enter your invoice/order number.', 'processflow-manager' ) ) );
 		}
 
 		$order = $this->order_manager->get_order_with_stage( $order_id );
@@ -260,17 +271,62 @@ class ProcessFlow_Public {
 			wp_send_json_error( array( 'message' => $order->get_error_message() ) );
 		}
 
-		$history = $this->db->get_stage_history( $order_id );
-		$stages  = $this->db->get_stages();
+		$stages         = $this->db->get_stages();
+		$is_admin_view  = $this->can_view_admin_tracking_details();
+		$order_payload  = array(
+			'id'             => (int) $order->id,
+			'invoice_number' => isset( $order->invoice_number ) ? $order->invoice_number : '',
+			'current_stage'  => (int) $order->current_stage,
+			'stage_name'     => isset( $order->stage_name ) ? $order->stage_name : '',
+			'stage_color'    => isset( $order->stage_color ) ? $order->stage_color : '#666',
+			'created_at'     => isset( $order->created_at ) ? $order->created_at : '',
+			'updated_at'     => isset( $order->updated_at ) ? $order->updated_at : '',
+		);
 
-		// Build whatsapp link for current stage.
-		$wa_url = $this->whatsapp->get_whatsapp_link( $order_id, (int) $order->current_stage );
+		if ( $is_admin_view ) {
+			$order_payload['customer_name'] = isset( $order->customer_name ) ? $order->customer_name : '';
+			$order_payload['business_name'] = isset( $order->business_name ) ? $order->business_name : '';
+			$order_payload['whatsapp']      = isset( $order->whatsapp ) ? $order->whatsapp : '';
+			$order_payload['job_details']   = isset( $order->job_details ) ? $order->job_details : '';
+		}
 
-		wp_send_json_success( array(
-			'order'   => $order,
-			'history' => $history,
-			'stages'  => $stages,
-			'wa_url'  => $wa_url,
-		) );
+		$response = array(
+			'is_admin_view' => $is_admin_view,
+			'order'         => $order_payload,
+			'stages'        => $stages,
+			'history'       => array(),
+			'wa_url'        => '',
+		);
+
+		if ( $is_admin_view ) {
+			$response['history'] = $this->db->get_stage_history( $order_id );
+			$response['wa_url']  = $this->whatsapp->get_whatsapp_link( $order_id, (int) $order->current_stage );
+		}
+
+		wp_send_json_success( $response );
+	}
+
+	/**
+	 * Determine whether the current viewer may access admin-only tracking details.
+	 *
+	 * @return bool
+	 */
+	private function can_view_admin_tracking_details(): bool {
+		if ( current_user_can( 'manage_options' ) ) {
+			return true;
+		}
+
+		$token = isset( $_COOKIE['pf_admin_token'] ) ? sanitize_text_field( wp_unslash( $_COOKIE['pf_admin_token'] ) ) : '';
+		if ( '' === $token ) {
+			return false;
+		}
+
+		$session = get_transient( 'processflow_admin_session_' . $token );
+		if ( is_array( $session ) && isset( $session['role'] ) ) {
+			return 'admin' === $session['role'];
+		}
+
+		// Legacy sessions stored as a truthy scalar are treated as admin.
+		return (bool) $session;
 	}
 }

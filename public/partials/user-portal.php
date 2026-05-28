@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 $title = $atts['title'] ?? __( 'Track Your Order', 'processflow-manager' );
-$intro = $settings->get_setting( 'portal_intro', __( 'Enter your order number and the last 4 digits of your WhatsApp number to check your order status.', 'processflow-manager' ) );
+$intro = $settings->get_setting( 'portal_intro', __( 'Enter your invoice/order number to check your order status.', 'processflow-manager' ) );
 ?>
 <div class="pf-portal">
 	<h2 class="pf-portal__title"><?php echo esc_html( $title ); ?></h2>
@@ -23,7 +23,7 @@ $intro = $settings->get_setting( 'portal_intro', __( 'Enter your order number an
 
 	<div id="pf-portal-notice"></div>
 
-	<!-- Login form -->
+	<!-- Lookup form -->
 	<div id="pf-portal-login-section" class="pf-login-card">
 		<h3><?php esc_html_e( 'Look Up Your Order', 'processflow-manager' ); ?></h3>
 		<form id="pf-portal-login-form" novalidate>
@@ -35,19 +35,6 @@ $intro = $settings->get_setting( 'portal_intro', __( 'Enter your order number an
 					type="text"
 					id="pf-portal-order-id"
 					placeholder="<?php esc_attr_e( 'e.g. INV-001', 'processflow-manager' ); ?>"
-					required
-				>
-			</div>
-			<div class="pf-field">
-				<label for="pf-portal-wa-last4">
-					<?php esc_html_e( 'Last 4 Digits of Your WhatsApp Number', 'processflow-manager' ); ?> *
-				</label>
-				<input
-					type="text"
-					id="pf-portal-wa-last4"
-					placeholder="<?php esc_attr_e( 'e.g. 4567', 'processflow-manager' ); ?>"
-					maxlength="4"
-					pattern="\d{4}"
 					required
 				>
 			</div>

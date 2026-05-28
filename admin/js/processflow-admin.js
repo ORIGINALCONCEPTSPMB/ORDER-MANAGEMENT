@@ -40,6 +40,9 @@
 			},
 			processflowAdmin.order_form_features || {}
 		),
+		customFields: Array.isArray(processflowAdmin.custom_fields)
+			? processflowAdmin.custom_fields
+			: [],
 
 		// -------------------------------------------------------------- //
 		// Bootstrap                                                        //
@@ -158,6 +161,19 @@
 					current_stage:  $form.find('[name="current_stage"]').val(),
 					product_lines:  lines.length ? JSON.stringify(lines) : '',
 				};
+				const customFields = {};
+				$form.find('[data-pf-custom-field]').each(function () {
+					const $input = $(this);
+					const key = String($input.data('field-key') || '').trim();
+					if (!key) return;
+					const fieldType = String($input.data('field-type') || 'text');
+					let value = $input.val();
+					if (fieldType === 'checkbox') {
+						value = $input.is(':checked') ? '1' : '0';
+					}
+					customFields[key] = value == null ? '' : String(value);
+				});
+				data.custom_fields = JSON.stringify(customFields);
 				if (orderId) data.order_id = orderId;
 
 				const $btn = $form.find('[type="submit"]').prop('disabled', true).text(this.strings.saving);
@@ -225,6 +241,7 @@
 			const showStage = !!this.orderFormFeatures.stage;
 			const showProductLines = !!this.orderFormFeatures.product_lines;
 			const showJobDetails = !!this.orderFormFeatures.job_details;
+			const customFieldsSection = this.buildCustomFieldsSection();
 
 			const businessNameSection = showBusinessName
 				? `<div class="pf-form-group">
@@ -286,6 +303,7 @@
 						${stageSection}
 						${productLinesSection}
 						${jobDetailsSection}
+						${customFieldsSection}
 					</form>
 				</div>
 				<div class="pf-modal__footer">
@@ -307,6 +325,24 @@
 						$('#pf-order-form [name="whatsapp"]').val(o.whatsapp);
 						$('#pf-order-form [name="job_details"]').val(o.job_details);
 						$('#pf-order-form [name="current_stage"]').val(o.current_stage);
+						if (o.custom_fields) {
+							try {
+								const customValues = JSON.parse(o.custom_fields);
+								if (customValues && typeof customValues === 'object') {
+									Object.keys(customValues).forEach((key) => {
+										const value = customValues[key];
+										const $field = $(`#pf-order-form [data-field-key="${key}"]`);
+										if (!$field.length) return;
+										const fieldType = String($field.data('field-type') || 'text');
+										if (fieldType === 'checkbox') {
+											$field.prop('checked', String(value) === '1');
+										} else {
+											$field.val(value);
+										}
+									});
+								}
+							} catch (e) { /* ignore parse errors */ }
+						}
 
 						// Populate product lines.
 						if (o.product_lines) {
@@ -335,6 +371,44 @@
 				<input type="number" placeholder="Qty"         class="pl-qty"   value="${qty}"   min="0" step="1"    style="width:100%;">
 				<input type="number" placeholder="Unit Price"  class="pl-price" value="${price}" min="0" step="0.01" style="width:100%;">
 				<button type="button" class="pf-btn pf-btn--danger pf-btn--sm pf-remove-product-line">✕</button>
+			</div>`;
+		},
+
+		buildCustomFieldsSection() {
+			if (!this.customFields.length) return '';
+			const fieldsHtml = this.customFields.map((field) => this.buildCustomFieldInput(field)).join('');
+			return `<div class="pf-form-group">
+				<label>Custom Fields</label>
+				<div id="pf-custom-fields">${fieldsHtml}</div>
+			</div>`;
+		},
+
+		buildCustomFieldInput(field) {
+			const key = this.esc(field.key || '');
+			const label = this.esc(field.label || 'Custom Field');
+			const type = String(field.type || 'text');
+			const required = field.is_required ? 'required' : '';
+			const requiredMark = field.is_required ? ' *' : '';
+
+			if (type === 'textarea') {
+				return `<div style="margin-bottom:8px;">
+					<label style="display:block;margin-bottom:4px;">${label}${requiredMark}</label>
+					<textarea data-pf-custom-field="1" data-field-key="${key}" data-field-type="textarea" rows="2" ${required}></textarea>
+				</div>`;
+			}
+			if (type === 'checkbox') {
+				return `<div style="margin-bottom:8px;">
+					<label>
+						<input type="checkbox" data-pf-custom-field="1" data-field-key="${key}" data-field-type="checkbox" value="1">
+						${label}${requiredMark}
+					</label>
+				</div>`;
+			}
+
+			const inputType = ['number', 'date'].includes(type) ? type : 'text';
+			return `<div style="margin-bottom:8px;">
+				<label style="display:block;margin-bottom:4px;">${label}${requiredMark}</label>
+				<input type="${inputType}" data-pf-custom-field="1" data-field-key="${key}" data-field-type="${this.esc(type)}" ${required}>
 			</div>`;
 		},
 
@@ -463,16 +537,25 @@
 
 		bindStageDragDrop() {
 			// Guard: $.fn.sortable requires jQuery UI – not always loaded on frontend.
-			if (typeof $.fn.sortable !== 'function') { return; }
-			$('.pf-stage-list').sortable({
+			if (typeof $.fn.sortable !== 'function') {
+				this.notice('Drag-and-drop is unavailable because jQuery UI Sortable is not loaded.', 'error', '#pf-stage-notice');
+				return;
+			}
+			$('#pf-stage-sortable').sortable({
 				handle: '.pf-stage-item__handle',
 				axis:   'y',
 				update: () => {
-					const order = $('.pf-stage-list .pf-stage-item').map(function () {
+					const order = $('#pf-stage-sortable .pf-stage-item').map(function () {
 						return $(this).data('id');
 					}).get();
 					PF.post('processflow_reorder_stages', { order }).done((res) => {
-						res.success && PF.notice(res.data.message);
+						if (res.success) {
+							PF.notice(res.data.message);
+						} else {
+							PF.notice((res.data && res.data.message) || 'Unable to reorder stages.', 'error', '#pf-stage-notice');
+						}
+					}).fail(() => {
+						PF.notice('Unable to reorder stages right now. Please try again.', 'error', '#pf-stage-notice');
 					});
 				},
 			});

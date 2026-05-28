@@ -171,6 +171,20 @@ if ( ! in_array( $active_tab, $allowed_tabs, true ) ) {
 			'product_lines' => (bool) $settings->get_setting( 'order_form_product_lines', 1 ),
 			'job_details'   => (bool) $settings->get_setting( 'order_form_job_details', 1 ),
 		),
+		'custom_fields'          => array_values(
+			array_map(
+				function ( $field ) {
+					return array(
+						'id'          => (int) $field->id,
+						'key'         => 'field_' . (int) $field->id,
+						'label'       => (string) $field->field_label,
+						'type'        => (string) $field->field_type,
+						'is_required' => ! empty( $field->is_required ),
+					);
+				},
+				$db->get_custom_fields()
+			)
+		),
 		'strings'                => array(
 			'saving'  => __( 'Saving…', 'processflow-manager' ),
 			'saved'   => __( 'Saved!', 'processflow-manager' ),

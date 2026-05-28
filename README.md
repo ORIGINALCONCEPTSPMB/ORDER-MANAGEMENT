@@ -59,7 +59,7 @@ Visitors are shown a password-protected login form. Set (or change) the password
 [processflow_user_portal]
 [processflow_user_portal title="Check Your Print Job"]
 ```
-Customers enter their **Order Number / Invoice #** and the **last 4 digits of their WhatsApp number** to view live status.
+Customers enter their **Order Number / Invoice #** to view live status.
 
 ---
 

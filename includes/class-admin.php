@@ -127,6 +127,7 @@ class ProcessFlow_Admin {
 			'processflow_ajax_nonce' => wp_create_nonce( 'processflow_admin_nonce' ),
 			'confirm_delete'         => __( 'Are you sure you want to delete this item? This cannot be undone.', 'processflow-manager' ),
 			'order_form_features'    => $this->get_order_form_features(),
+			'custom_fields'          => $this->get_custom_fields_for_form(),
 			'strings'                => array(
 				'saving'  => __( 'Saving…', 'processflow-manager' ),
 				'saved'   => __( 'Saved!', 'processflow-manager' ),
@@ -148,6 +149,28 @@ class ProcessFlow_Admin {
 			'product_lines' => (bool) $this->settings->get_setting( 'order_form_product_lines', 1 ),
 			'job_details'   => (bool) $this->settings->get_setting( 'order_form_job_details', 1 ),
 		);
+	}
+
+	/**
+	 * Build custom-field definitions for the order modal.
+	 *
+	 * @return array
+	 */
+	private function get_custom_fields_for_form(): array {
+		$fields  = $this->db->get_custom_fields();
+		$payload = array();
+
+		foreach ( $fields as $field ) {
+			$payload[] = array(
+				'id'         => (int) $field->id,
+				'key'        => 'field_' . (int) $field->id,
+				'label'      => (string) $field->field_label,
+				'type'       => (string) $field->field_type,
+				'is_required'=> ! empty( $field->is_required ),
+			);
+		}
+
+		return $payload;
 	}
 
 
@@ -194,6 +217,7 @@ class ProcessFlow_Admin {
 				'processflow_ajax_nonce' => wp_create_nonce( 'processflow_admin_nonce' ),
 				'confirm_delete'        => __( 'Are you sure you want to delete this item? This cannot be undone.', 'processflow-manager' ),
 				'order_form_features'   => $this->get_order_form_features(),
+				'custom_fields'         => $this->get_custom_fields_for_form(),
 				'strings'               => array(
 					'saving'  => __( 'Saving…', 'processflow-manager' ),
 					'saved'   => __( 'Saved!', 'processflow-manager' ),
@@ -581,6 +605,7 @@ class ProcessFlow_Admin {
 			'job_details'    => isset( $_POST['job_details'] ) ? sanitize_textarea_field( wp_unslash( $_POST['job_details'] ) ) : '',
 			'product_lines'  => $product_lines ?: null,
 			'current_stage'  => isset( $_POST['current_stage'] ) ? absint( $_POST['current_stage'] ) : 0,
+			'custom_fields'  => $this->sanitize_custom_fields_from_request(),
 		);
 
 		$result = $this->order_manager->create_order( $data );
@@ -624,6 +649,7 @@ class ProcessFlow_Admin {
 			'job_details'    => isset( $_POST['job_details'] ) ? sanitize_textarea_field( wp_unslash( $_POST['job_details'] ) ) : '',
 			'product_lines'  => $product_lines,
 			'current_stage'  => isset( $_POST['current_stage'] ) ? absint( $_POST['current_stage'] ) : 0,
+			'custom_fields'  => $this->sanitize_custom_fields_from_request(),
 		);
 
 		$result = $this->order_manager->update_order( $id, $data );
@@ -662,8 +688,50 @@ class ProcessFlow_Admin {
 			'invoice_number' => isset( $order->invoice_number ) ? $order->invoice_number : '',
 			'job_details'    => $order->job_details,
 			'product_lines'  => isset( $order->product_lines ) ? $order->product_lines : null,
+			'custom_fields'  => isset( $order->custom_fields ) ? $order->custom_fields : null,
 			'current_stage'  => $order->current_stage,
 		) );
+	}
+
+	/**
+	 * Parse and sanitize custom field values from the AJAX request.
+	 *
+	 * @return array
+	 */
+	private function sanitize_custom_fields_from_request(): array {
+		$raw_payload = isset( $_POST['custom_fields'] ) ? wp_unslash( $_POST['custom_fields'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		if ( '' === $raw_payload ) {
+			return array();
+		}
+
+		$decoded = json_decode( $raw_payload, true );
+		if ( ! is_array( $decoded ) ) {
+			return array();
+		}
+
+		$field_map = array();
+		foreach ( $this->db->get_custom_fields() as $field ) {
+			$field_map[ 'field_' . (int) $field->id ] = $field->field_type;
+		}
+
+		$clean = array();
+		foreach ( $decoded as $key => $value ) {
+			$safe_key = sanitize_key( $key );
+			if ( ! isset( $field_map[ $safe_key ] ) ) {
+				continue;
+			}
+
+			$field_type = $field_map[ $safe_key ];
+			if ( 'checkbox' === $field_type ) {
+				$clean[ $safe_key ] = ! empty( $value ) ? '1' : '0';
+			} elseif ( 'textarea' === $field_type ) {
+				$clean[ $safe_key ] = sanitize_textarea_field( (string) $value );
+			} else {
+				$clean[ $safe_key ] = sanitize_text_field( (string) $value );
+			}
+		}
+
+		return $clean;
 	}
 
 	/**

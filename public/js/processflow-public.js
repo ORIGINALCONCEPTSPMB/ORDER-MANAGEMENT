@@ -12,8 +12,8 @@
 		ajaxUrl: processflowPublic.ajax_url,
 		strings: processflowPublic.strings,
 
-		// Auth token stored in sessionStorage.
-		token:   sessionStorage.getItem('pf_portal_token') || '',
+		// Last looked-up invoice/order reference.
+		orderRef: sessionStorage.getItem('pf_portal_order_ref') || '',
 
 		// -------------------------------------------------------------- //
 		// Bootstrap                                                        //
@@ -23,9 +23,10 @@
 			this.bindCopyOrderId();
 			this.bindRefresh();
 
-			// Auto-load if we already have a token.
-			if (this.token) {
-				this.loadOrder();
+			// Auto-load if we already have a recent lookup.
+			if (this.orderRef) {
+				$('#pf-portal-order-id').val(this.orderRef);
+				this.loadOrder(this.orderRef);
 			}
 		},
 
@@ -51,7 +52,7 @@
 		},
 
 		// -------------------------------------------------------------- //
-		// Login                                                            //
+		// Lookup                                                           //
 		// -------------------------------------------------------------- //
 		bindLogin() {
 			$(document).on('submit', '#pf-portal-login-form', (e) => {
@@ -59,62 +60,36 @@
 				this.clearNotice();
 
 				const orderId = $('#pf-portal-order-id').val().trim();
-				const wa4     = $('#pf-portal-wa-last4').val().trim();
 
-				if (!orderId || wa4.length !== 4 || !/^\d{4}$/.test(wa4)) {
+				if (!orderId) {
 					this.notice(this.strings.not_found);
 					return;
 				}
+				this.orderRef = orderId;
+				sessionStorage.setItem('pf_portal_order_ref', orderId);
 
 				const $btn = $('#pf-portal-login-btn').prop('disabled', true).text(this.strings.loading);
-
-				this.post('processflow_portal_login', {
-					order_id: orderId,
-					wa_last4: wa4,
-				}).done((res) => {
-					if (res.success) {
-						this.token = res.data.token;
-						sessionStorage.setItem('pf_portal_token', this.token);
-						$('#pf-portal-login-section').hide();
-						this.loadOrder();
-					} else {
-						this.notice(res.data.message);
-					}
-				}).fail(() => {
-					this.notice(this.strings.error);
-				}).always(() => {
+				this.loadOrder(orderId).always(() => {
 					$btn.prop('disabled', false).text('Track My Order');
 				});
-			});
-
-			// Logout.
-			$(document).on('click', '#pf-portal-logout', () => {
-				sessionStorage.removeItem('pf_portal_token');
-				this.token = '';
-				$('#pf-portal-result').empty();
-				$('#pf-portal-login-section').show();
-				this.clearNotice();
 			});
 		},
 
 		// -------------------------------------------------------------- //
 		// Order lookup & rendering                                         //
 		// -------------------------------------------------------------- //
-		loadOrder() {
+		loadOrder(orderRef = this.orderRef) {
+			if (!orderRef) return $.Deferred().resolve();
+
 			$('#pf-portal-result').html(
 				`<div class="pf-spinner">${this.strings.loading}</div>`
 			);
 
-			this.post('processflow_lookup_order', { token: this.token }).done((res) => {
+			return this.post('processflow_lookup_order', { order_id: orderRef }).done((res) => {
 				if (res.success) {
-					$('#pf-portal-login-section').hide();
 					this.renderOrder(res.data);
 				} else {
-					// Session expired.
-					sessionStorage.removeItem('pf_portal_token');
-					this.token = '';
 					$('#pf-portal-result').empty();
-					$('#pf-portal-login-section').show();
 					this.notice(res.data.message);
 				}
 			}).fail(() => {
@@ -124,7 +99,7 @@
 		},
 
 		renderOrder(data) {
-			const { order, history, stages, wa_url } = data;
+			const { order, history, stages, wa_url, is_admin_view } = data;
 			const displayOrderNumber = order.invoice_number ? String(order.invoice_number) : String(order.id);
 
 			// ---- Progress ------------------------------------------- //
@@ -147,8 +122,9 @@
 			}).join('');
 
 			// ---- History -------------------------------------------- //
-			const historyHtml = history.length
-				? history.map(h => `
+			const historyRows = Array.isArray(history) ? history : [];
+			const historyHtml = historyRows.length
+				? historyRows.map(h => `
 				<div class="pf-timeline-item">
 					<div class="pf-timeline-item__stage">
 						<span class="pf-pub-badge" style="background:${this.escHtml(h.stage_color || '#666')}">${this.escHtml(h.stage_name)}</span>
@@ -167,7 +143,7 @@
 						<div class="pf-order-card__id">Order #${this.escHtml(displayOrderNumber)}
 							<button class="pf-pub-btn pf-pub-btn--outline pf-pub-btn--sm pf-copy-btn" data-copy="${displayOrderNumber.replace(/"/g, '&quot;')}" style="margin-left:8px;vertical-align:middle;">&#128203; Copy</button>
 						</div>
-						<div class="pf-order-card__customer">${this.escHtml(order.customer_name)} – ${this.escHtml(order.business_name)}</div>
+						<div class="pf-order-card__customer">${is_admin_view ? `${this.escHtml(order.customer_name)} – ${this.escHtml(order.business_name)}` : this.escHtml(order.stage_name || '')}</div>
 					</div>
 					<span class="pf-pub-badge" style="background:${this.escHtml(order.stage_color || '#666')}">${this.escHtml(order.stage_name || 'N/A')}</span>
 				</div>
@@ -181,10 +157,10 @@
 							<div class="pf-order-meta__label">Last Updated</div>
 							<div class="pf-order-meta__value">${this.escHtml(order.updated_at)}</div>
 						</div>
-						<div class="pf-order-meta__item" style="grid-column:span 2">
+						${is_admin_view ? `<div class="pf-order-meta__item" style="grid-column:span 2">
 							<div class="pf-order-meta__label">Job Details</div>
 							<div class="pf-order-meta__value" style="font-weight:400">${this.escHtml(order.job_details || '—')}</div>
-						</div>
+						</div>` : ''}
 					</div>
 
 					<div class="pf-progress">
@@ -196,13 +172,12 @@
 
 					<div class="pf-stage-steps">${stepsHtml}</div>
 
-					<h3 style="font-size:15px;margin:24px 0 12px;">History</h3>
-					<div class="pf-timeline">${historyHtml}</div>
+					${is_admin_view ? `<h3 style="font-size:15px;margin:24px 0 12px;">History</h3>
+					<div class="pf-timeline">${historyHtml}</div>` : ''}
 
 					<div class="pf-order-actions">
-						${wa_url && wa_url !== '#' ? `<a href="${wa_url}" target="_blank" class="pf-pub-btn pf-pub-btn--whatsapp">&#128172; Contact via WhatsApp</a>` : ''}
+						${is_admin_view && wa_url && wa_url !== '#' ? `<a href="${wa_url}" target="_blank" class="pf-pub-btn pf-pub-btn--whatsapp">&#128172; Contact via WhatsApp</a>` : ''}
 						<button id="pf-portal-refresh" class="pf-pub-btn pf-pub-btn--outline">&#8635; Refresh</button>
-						<button id="pf-portal-logout" class="pf-pub-btn pf-pub-btn--outline">&#128682; Log Out</button>
 					</div>
 				</div>
 			</div>`;
@@ -223,7 +198,7 @@
 		// Refresh                                                          //
 		// -------------------------------------------------------------- //
 		bindRefresh() {
-			$(document).on('click', '#pf-portal-refresh', () => this.loadOrder());
+			$(document).on('click', '#pf-portal-refresh', () => this.loadOrder(this.orderRef));
 		},
 
 		// -------------------------------------------------------------- //
