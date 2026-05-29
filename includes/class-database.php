@@ -101,8 +101,8 @@ class ProcessFlow_Database {
 
 		return $wpdb->get_row( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 			$wpdb->prepare(
-				"SELECT * FROM {$wpdb->prefix}processflow_orders WHERE invoice_number = %s ORDER BY id DESC LIMIT 1",
-				$invoice_number
+				"SELECT * FROM {$wpdb->prefix}processflow_orders WHERE LOWER(invoice_number) = %s ORDER BY id DESC LIMIT 1",
+				strtolower( $invoice_number )
 			)
 		);
 	}

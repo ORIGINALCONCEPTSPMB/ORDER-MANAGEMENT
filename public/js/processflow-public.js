@@ -86,11 +86,12 @@
 			);
 
 			return this.post('processflow_lookup_order', { order_id: orderRef }).done((res) => {
-				if (res.success) {
+				if (res && res.success) {
 					this.renderOrder(res.data);
 				} else {
 					$('#pf-portal-result').empty();
-					this.notice(res.data.message);
+					const msg = (res && res.data && res.data.message) ? res.data.message : this.strings.error;
+					this.notice(msg);
 				}
 			}).fail(() => {
 				$('#pf-portal-result').empty();
