@@ -1,0 +1,605 @@
+/* ================================================================
+   ProcessFlow Manager – Admin Stylesheet  (v2 – Modern Design)
+   ================================================================ */
+
+/* ---- CSS Variables -------------------------------------------- */
+:root {
+  --pf-primary:      #4f46e5;
+  --pf-primary-dk:   #3730a3;
+  --pf-primary-lt:   #eef2ff;
+  --pf-success:      #10b981;
+  --pf-success-lt:   #ecfdf5;
+  --pf-warning:      #f59e0b;
+  --pf-warning-lt:   #fffbeb;
+  --pf-danger:       #ef4444;
+  --pf-danger-lt:    #fef2f2;
+  --pf-info:         #06b6d4;
+  --pf-info-lt:      #ecfeff;
+  --pf-bg:           #f8fafc;
+  --pf-white:        #ffffff;
+  --pf-border:       #e2e8f0;
+  --pf-border-focus: #818cf8;
+  --pf-text:         #1e293b;
+  --pf-text-2:       #475569;
+  --pf-muted:        #94a3b8;
+  --pf-radius:       10px;
+  --pf-radius-sm:    6px;
+  --pf-radius-lg:    14px;
+  --pf-shadow-sm:    0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+  --pf-shadow:       0 4px 6px -1px rgba(0,0,0,.07), 0 2px 4px -1px rgba(0,0,0,.04);
+  --pf-shadow-lg:    0 10px 25px -5px rgba(0,0,0,.1), 0 4px 6px -2px rgba(0,0,0,.05);
+  --pf-shadow-xl:    0 20px 40px -10px rgba(0,0,0,.15);
+  --pf-grad-primary: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  --pf-grad-header:  linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%);
+  --pf-trans:        .18s ease;
+}
+
+/* ---- WP Admin Page Wrapper ------------------------------------ */
+.pf-wrap { max-width: 1200px; padding: 20px 0; }
+.pf-wrap h1 {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 22px; margin-bottom: 20px; color: var(--pf-text);
+}
+.pf-wrap h1 .dashicons { color: var(--pf-primary); font-size: 26px; width: 26px; height: 26px; }
+
+/* ---- Stat Cards ----------------------------------------------- */
+.pf-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 18px; margin-bottom: 28px;
+}
+.pf-stat-card {
+  background: var(--pf-white);
+  border: 1px solid var(--pf-border);
+  border-radius: var(--pf-radius);
+  padding: 22px 20px;
+  box-shadow: var(--pf-shadow-sm);
+  text-align: center;
+  transition: box-shadow var(--pf-trans), transform var(--pf-trans);
+  position: relative; overflow: hidden;
+}
+.pf-stat-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: var(--pf-grad-primary);
+}
+.pf-stat-card:hover {
+  box-shadow: var(--pf-shadow-lg);
+  transform: translateY(-2px);
+}
+.pf-stat-card__number {
+  font-size: 38px; font-weight: 800;
+  background: var(--pf-grad-primary);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1.1; margin-bottom: 6px;
+}
+.pf-stat-card__label {
+  font-size: 12px; font-weight: 600; color: var(--pf-muted);
+  text-transform: uppercase; letter-spacing: .05em;
+}
+
+/* ---- Cards / Panels ------------------------------------------ */
+.pf-card {
+  background: var(--pf-white);
+  border: 1px solid var(--pf-border);
+  border-radius: var(--pf-radius);
+  box-shadow: var(--pf-shadow-sm);
+  margin-bottom: 24px;
+  overflow: hidden;
+  transition: box-shadow var(--pf-trans);
+}
+.pf-card:hover { box-shadow: var(--pf-shadow); }
+.pf-card__header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--pf-border);
+  background: linear-gradient(to right, #f8fafc, #fff);
+}
+.pf-card__title { font-size: 14px; font-weight: 700; margin: 0; color: var(--pf-text); letter-spacing: -.01em; }
+.pf-card__body { padding: 20px; }
+
+/* ---- Toolbar ------------------------------------------------- */
+.pf-toolbar {
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: 10px; margin-bottom: 16px;
+}
+.pf-toolbar .pf-search { flex: 1; min-width: 200px; max-width: 340px; }
+.pf-toolbar select,
+.pf-toolbar input[type="search"],
+.pf-toolbar input[type="text"] {
+  height: 38px; padding: 0 12px;
+  border: 1.5px solid var(--pf-border);
+  border-radius: var(--pf-radius-sm);
+  font-size: 13px; width: 100%;
+  background: var(--pf-white);
+  transition: border-color var(--pf-trans), box-shadow var(--pf-trans);
+}
+.pf-toolbar select:focus,
+.pf-toolbar input:focus {
+  outline: none;
+  border-color: var(--pf-border-focus);
+  box-shadow: 0 0 0 3px rgba(79,70,229,.1);
+}
+
+/* ---- Data Table ---------------------------------------------- */
+.pf-table-wrap { overflow-x: auto; }
+.pf-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.pf-table th,
+.pf-table td { padding: 11px 16px; text-align: left; border-bottom: 1px solid var(--pf-border); vertical-align: middle; }
+.pf-table th {
+  background: linear-gradient(to bottom, #f8fafc, #f1f5f9);
+  font-weight: 700; color: var(--pf-text);
+  font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+  white-space: nowrap;
+}
+.pf-table tr:last-child td { border-bottom: none; }
+.pf-table tbody tr { transition: background var(--pf-trans); }
+.pf-table tbody tr:hover td { background: #f8fafc; }
+
+/* ---- Badges -------------------------------------------------- */
+.pf-badge {
+  display: inline-flex; align-items: center;
+  padding: 3px 10px; border-radius: 20px;
+  font-size: 11px; font-weight: 700; color: var(--pf-white);
+  white-space: nowrap; text-transform: uppercase; letter-spacing: .05em;
+}
+.pf-badge--role-admin    { background: var(--pf-primary); }
+.pf-badge--role-operator { background: var(--pf-warning); color: #fff; }
+
+/* ---- Buttons ------------------------------------------------- */
+.pf-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 18px; font-size: 13px; font-weight: 600;
+  border-radius: var(--pf-radius-sm); cursor: pointer;
+  border: 1.5px solid transparent; text-decoration: none;
+  transition: all var(--pf-trans); line-height: 1.4;
+  letter-spacing: -.01em; white-space: nowrap;
+}
+.pf-btn--primary {
+  background: var(--pf-grad-primary); color: var(--pf-white);
+  border-color: transparent;
+  box-shadow: 0 2px 8px rgba(79,70,229,.35);
+}
+.pf-btn--primary:hover {
+  background: linear-gradient(135deg, #3730a3 0%, #6d28d9 100%);
+  color: var(--pf-white);
+  box-shadow: 0 4px 16px rgba(79,70,229,.45);
+  transform: translateY(-1px);
+}
+.pf-btn--success {
+  background: var(--pf-success); color: var(--pf-white);
+  border-color: #059669;
+  box-shadow: 0 2px 6px rgba(16,185,129,.3);
+}
+.pf-btn--success:hover {
+  background: #059669; color: var(--pf-white);
+  box-shadow: 0 4px 12px rgba(16,185,129,.4);
+  transform: translateY(-1px);
+}
+.pf-btn--danger {
+  background: var(--pf-danger); color: var(--pf-white);
+  border-color: #dc2626;
+  box-shadow: 0 2px 6px rgba(239,68,68,.25);
+}
+.pf-btn--danger:hover {
+  background: #dc2626; color: var(--pf-white);
+  transform: translateY(-1px);
+}
+.pf-btn--outline {
+  background: var(--pf-white); color: var(--pf-primary);
+  border-color: var(--pf-border);
+}
+.pf-btn--outline:hover {
+  background: var(--pf-primary-lt);
+  border-color: var(--pf-primary);
+  color: var(--pf-primary);
+}
+.pf-btn--sm { padding: 5px 12px; font-size: 12px; }
+.pf-btn:disabled,
+.pf-btn[disabled] {
+  opacity: .6; cursor: not-allowed;
+  transform: none !important; box-shadow: none !important;
+}
+
+/* ---- Forms --------------------------------------------------- */
+.pf-form-group { margin-bottom: 18px; }
+.pf-form-group label {
+  display: block; font-size: 13px; font-weight: 600;
+  color: var(--pf-text); margin-bottom: 6px;
+}
+.pf-form-group input[type="text"],
+.pf-form-group input[type="email"],
+.pf-form-group input[type="password"],
+.pf-form-group input[type="number"],
+.pf-form-group input[type="url"],
+.pf-form-group select,
+.pf-form-group textarea {
+  width: 100%; padding: 9px 13px;
+  border: 1.5px solid var(--pf-border);
+  border-radius: var(--pf-radius-sm);
+  font-size: 14px; color: var(--pf-text);
+  background: var(--pf-white);
+  transition: border-color var(--pf-trans), box-shadow var(--pf-trans);
+  box-sizing: border-box;
+}
+.pf-form-group input:focus,
+.pf-form-group select:focus,
+.pf-form-group textarea:focus {
+  outline: none;
+  border-color: var(--pf-border-focus);
+  box-shadow: 0 0 0 3px rgba(79,70,229,.1);
+}
+.pf-form-group textarea { min-height: 90px; resize: vertical; }
+.pf-form-group .pf-hint { font-size: 11px; color: var(--pf-muted); margin: 5px 0 0; }
+
+/* ---- Pagination ---------------------------------------------- */
+.pf-pagination { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 14px; }
+.pf-pagination a,
+.pf-pagination .current {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: var(--pf-radius-sm);
+  font-size: 13px; font-weight: 600; text-decoration: none;
+  border: 1.5px solid var(--pf-border);
+  transition: all var(--pf-trans);
+}
+.pf-pagination a { background: var(--pf-white); color: var(--pf-text); }
+.pf-pagination a:hover { background: var(--pf-primary-lt); border-color: var(--pf-primary); color: var(--pf-primary); }
+.pf-pagination .current { background: var(--pf-primary); border-color: var(--pf-primary); color: var(--pf-white); }
+
+/* ---- Modal --------------------------------------------------- */
+.pf-modal-overlay {
+  position: fixed; inset: 0; z-index: 99999;
+  background: rgba(15,23,42,.6);
+  backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px; animation: pf-fade-in .15s ease;
+}
+@keyframes pf-fade-in { from { opacity: 0; } to { opacity: 1; } }
+.pf-modal {
+  background: var(--pf-white);
+  border-radius: var(--pf-radius-lg);
+  box-shadow: var(--pf-shadow-xl);
+  width: 100%; max-width: 540px;
+  max-height: 90vh; overflow-y: auto;
+  animation: pf-slide-up .2s ease;
+}
+@keyframes pf-slide-up {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+.pf-modal__header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--pf-border);
+}
+.pf-modal__title { font-size: 17px; font-weight: 700; margin: 0; color: var(--pf-text); }
+.pf-modal__close {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: none; border: none; cursor: pointer;
+  font-size: 20px; color: var(--pf-muted); line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  transition: background var(--pf-trans), color var(--pf-trans);
+}
+.pf-modal__close:hover { background: var(--pf-danger-lt); color: var(--pf-danger); }
+.pf-modal__body { padding: 20px 24px; }
+.pf-modal__footer {
+  display: flex; align-items: center; justify-content: flex-end; gap: 10px;
+  padding: 16px 24px; border-top: 1px solid var(--pf-border);
+  background: #f8fafc;
+}
+
+/* ---- Notices ------------------------------------------------- */
+#pf-notice-area { padding: 0 24px; }
+.pf-notice {
+  padding: 12px 16px; border-radius: var(--pf-radius-sm);
+  margin-bottom: 12px; font-size: 13px; font-weight: 500;
+  display: flex; align-items: center; gap: 8px;
+  animation: pf-fade-in .2s ease;
+}
+.pf-notice--success { background: var(--pf-success-lt); color: #065f46; border-left: 4px solid var(--pf-success); }
+.pf-notice--error   { background: var(--pf-danger-lt);  color: #991b1b; border-left: 4px solid var(--pf-danger); }
+.pf-notice--info    { background: var(--pf-info-lt);    color: #0c4a6e; border-left: 4px solid var(--pf-info); }
+
+/* ---- Stage list (drag-drop) ---------------------------------- */
+.pf-stage-list { list-style: none; margin: 0; padding: 0; }
+.pf-stage-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px; border: 1.5px solid var(--pf-border);
+  border-radius: var(--pf-radius-sm); margin-bottom: 8px;
+  background: var(--pf-white);
+  cursor: grab; transition: box-shadow var(--pf-trans), transform var(--pf-trans);
+}
+.pf-stage-item:hover {
+  box-shadow: var(--pf-shadow);
+  transform: translateX(2px);
+}
+.pf-stage-item:active { cursor: grabbing; }
+.pf-stage-item__handle { color: var(--pf-muted); font-size: 16px; }
+.pf-stage-item__color {
+  width: 14px; height: 14px; border-radius: 4px;
+  flex-shrink: 0; box-shadow: inset 0 1px 2px rgba(0,0,0,.15);
+}
+.pf-stage-item__name { flex: 1; font-weight: 600; font-size: 14px; color: var(--pf-text); }
+.pf-stage-item__actions { display: flex; gap: 6px; }
+
+/* ---- QR Grid ------------------------------------------------- */
+.pf-qr-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 18px;
+}
+.pf-qr-card {
+  background: var(--pf-white); border: 1.5px solid var(--pf-border);
+  border-radius: var(--pf-radius); padding: 18px;
+  text-align: center;
+  box-shadow: var(--pf-shadow-sm);
+  transition: box-shadow var(--pf-trans), transform var(--pf-trans);
+}
+.pf-qr-card:hover { box-shadow: var(--pf-shadow-lg); transform: translateY(-3px); }
+.pf-qr-card img { max-width: 140px; width: 100%; border-radius: var(--pf-radius-sm); }
+.pf-qr-card__id { font-size: 12px; margin-top: 10px; color: var(--pf-text-2); }
+
+/* ---- Sub-tabs (Settings page) -------------------------------- */
+.pf-tabs {
+  border-bottom: 2px solid var(--pf-border);
+  margin-bottom: 20px; display: flex; gap: 4px;
+}
+.pf-tab {
+  padding: 9px 16px; background: none; border: none; cursor: pointer;
+  font-size: 13px; font-weight: 600; color: var(--pf-muted);
+  border-bottom: 2px solid transparent; margin-bottom: -2px;
+  border-radius: var(--pf-radius-sm) var(--pf-radius-sm) 0 0;
+  transition: color var(--pf-trans), background var(--pf-trans);
+}
+.pf-tab:hover { color: var(--pf-primary); background: var(--pf-primary-lt); }
+.pf-tab.active {
+  color: var(--pf-primary); border-bottom-color: var(--pf-primary);
+  background: none;
+}
+.pf-tab-content { display: none; }
+.pf-tab-content.active { display: block; }
+
+/* ---- WP Admin Responsive -------------------------------------- */
+@media (max-width: 782px) {
+  .pf-stats { grid-template-columns: repeat(2, 1fr); }
+  .pf-table th, .pf-table td { padding: 8px 10px; }
+}
+
+/* ================================================================
+   LOGIN FORM
+   ================================================================ */
+.pf-login-wrap {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 100vh; padding: 24px;
+  background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+  position: relative; overflow: hidden;
+}
+.pf-login-wrap::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at 40% 50%, rgba(124,58,237,.25) 0%, transparent 70%),
+              radial-gradient(ellipse at 80% 20%, rgba(79,70,229,.2) 0%, transparent 60%);
+  pointer-events: none;
+}
+.pf-login-card {
+  background: rgba(255,255,255,.05);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 20px;
+  padding: 44px 40px 40px;
+  width: 100%; max-width: 420px;
+  box-shadow: 0 24px 60px rgba(0,0,0,.5);
+  position: relative; z-index: 1;
+}
+.pf-login-logo {
+  display: flex; justify-content: center; margin-bottom: 20px;
+}
+.pf-login-logo svg {
+  filter: drop-shadow(0 4px 12px rgba(99,102,241,.6));
+}
+.pf-login-title {
+  text-align: center; font-size: 24px; font-weight: 800;
+  color: #fff; margin: 0 0 8px; letter-spacing: -.02em;
+}
+.pf-login-subtitle {
+  text-align: center; font-size: 14px; color: rgba(255,255,255,.55);
+  margin: 0 0 28px;
+}
+.pf-login-form { display: flex; flex-direction: column; gap: 16px; }
+.pf-login-field { display: flex; flex-direction: column; gap: 7px; }
+.pf-login-label {
+  font-size: 12px; font-weight: 600; color: rgba(255,255,255,.7);
+  display: flex; align-items: center; gap: 6px;
+  text-transform: uppercase; letter-spacing: .06em;
+}
+.pf-login-input {
+  width: 100%; padding: 12px 16px;
+  background: rgba(255,255,255,.08);
+  border: 1.5px solid rgba(255,255,255,.15);
+  border-radius: 10px;
+  color: #fff; font-size: 15px;
+  transition: border-color var(--pf-trans), background var(--pf-trans), box-shadow var(--pf-trans);
+  box-sizing: border-box;
+}
+.pf-login-input::placeholder { color: rgba(255,255,255,.3); }
+.pf-login-input:focus {
+  outline: none;
+  border-color: rgba(129,140,248,.8);
+  background: rgba(255,255,255,.12);
+  box-shadow: 0 0 0 4px rgba(79,70,229,.2);
+}
+.pf-login-btn {
+  width: 100%; padding: 13px;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  color: #fff; border: none; border-radius: 10px;
+  font-size: 15px; font-weight: 700; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  transition: all var(--pf-trans);
+  box-shadow: 0 4px 20px rgba(99,102,241,.4);
+  margin-top: 8px; letter-spacing: -.01em;
+}
+.pf-login-btn:hover {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  box-shadow: 0 6px 30px rgba(99,102,241,.55);
+  transform: translateY(-2px);
+}
+.pf-login-btn:active { transform: translateY(0); }
+.pf-login-error {
+  background: rgba(239,68,68,.15); border: 1px solid rgba(239,68,68,.3);
+  color: #fca5a5; border-radius: 10px; padding: 10px 14px;
+  font-size: 13px; font-weight: 500; text-align: center;
+  animation: pf-shake .3s ease;
+}
+@keyframes pf-shake {
+  0%, 100% { transform: translateX(0); }
+  25%       { transform: translateX(-6px); }
+  75%       { transform: translateX(6px); }
+}
+
+/* ================================================================
+   FRONTEND ADMIN WRAPPER
+   ================================================================ */
+.pf-frontend-wrap {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', sans-serif;
+  background: var(--pf-bg);
+  min-height: 100vh;
+  color: var(--pf-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---- Header -------------------------------------------------- */
+.pf-frontend-header {
+  background: var(--pf-grad-header);
+  position: sticky; top: 0; z-index: 100;
+  height: 58px;
+  display: flex; align-items: center;
+  padding: 0 20px; gap: 16px;
+  box-shadow: 0 4px 20px rgba(15,23,42,.35);
+}
+.pf-frontend-header__brand {
+  display: flex; align-items: center; gap: 10px;
+  color: #fff; font-size: 16px; font-weight: 800;
+  flex-shrink: 0; letter-spacing: -.02em;
+  text-shadow: 0 1px 4px rgba(0,0,0,.3);
+}
+.pf-frontend-nav {
+  display: flex; align-items: center; gap: 2px;
+  flex: 1; overflow-x: auto; padding: 6px 0;
+  scrollbar-width: none;
+}
+.pf-frontend-nav::-webkit-scrollbar { display: none; }
+.pf-fnav__tab {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 14px; background: transparent;
+  border: none; border-radius: 8px;
+  color: rgba(255,255,255,.65); font-size: 13px; font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+  transition: background var(--pf-trans), color var(--pf-trans);
+  letter-spacing: -.01em;
+}
+.pf-fnav__tab:hover {
+  background: rgba(255,255,255,.12);
+  color: #fff;
+}
+.pf-fnav__tab.active {
+  background: rgba(255,255,255,.18);
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.2);
+}
+.pf-frontend-header__actions {
+  display: flex; align-items: center; gap: 10px;
+  flex-shrink: 0; margin-left: auto;
+}
+.pf-session-role {
+  padding: 4px 10px; border-radius: 20px;
+  font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .06em;
+}
+.pf-session-role--admin    { background: rgba(167,243,208,.25); color: #6ee7b7; }
+.pf-session-role--operator { background: rgba(253,186,116,.25); color: #fbbf24; }
+
+/* ---- Main content area --------------------------------------- */
+.pf-frontend-main { padding: 28px 24px; max-width: 1360px; margin: 0 auto; }
+
+/* ---- Tab panels ---------------------------------------------- */
+.pf-ftab { display: none; animation: pf-fade-in .18s ease; }
+.pf-ftab.active { display: block; }
+.pf-ftab__header {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px;
+  margin-bottom: 24px;
+}
+.pf-ftab__header h2 {
+  font-size: 20px; font-weight: 800; color: var(--pf-text);
+  margin: 0; letter-spacing: -.02em;
+}
+
+/* ---- Invoice Ninja status indicator -------------------------- */
+.pf-in-status {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 14px; border-radius: 8px;
+  font-size: 13px; font-weight: 600; margin-bottom: 16px;
+}
+.pf-in-status--connected    { background: var(--pf-success-lt); color: #065f46; }
+.pf-in-status--disconnected { background: var(--pf-warning-lt); color: #92400e; }
+
+/* ---- File Drop ----------------------------------------------- */
+.pf-file-drop {
+  border: 2px dashed var(--pf-border);
+  border-radius: var(--pf-radius);
+  padding: 36px 20px;
+  text-align: center; position: relative;
+  transition: border-color var(--pf-trans), background var(--pf-trans);
+  cursor: pointer; background: #fafbfc;
+}
+.pf-file-drop:hover,
+.pf-file-drop.drag-over {
+  border-color: var(--pf-primary);
+  background: var(--pf-primary-lt);
+}
+.pf-file-input {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  opacity: 0; cursor: pointer; z-index: 1;
+}
+.pf-file-drop__text {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  pointer-events: none; color: var(--pf-text-2);
+}
+.pf-file-drop__text svg { color: var(--pf-primary); opacity: .7; }
+.pf-file-drop__text span { font-size: 14px; font-weight: 600; }
+.pf-file-drop__text small { font-size: 12px; color: var(--pf-muted); }
+
+/* ---- CSV template columns preview ---------------------------- */
+.pf-template-cols { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.pf-template-col-item {
+  background: #f1f5f9; border-radius: 6px; padding: 6px 10px;
+  font-size: 12px; color: var(--pf-text);
+}
+.pf-template-col-item code {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 12px; color: var(--pf-primary);
+}
+.pf-template-col-item--optional {
+  background: #fef9c3;
+  display: flex; align-items: center; gap: 6px;
+}
+.pf-template-col-item--optional span {
+  font-size: 10px; text-transform: uppercase;
+  letter-spacing: .05em; color: #92400e; font-weight: 700;
+}
+
+/* ---- Responsive ---------------------------------------------- */
+@media (max-width: 900px) {
+  .pf-frontend-header { height: auto; flex-wrap: wrap; padding: 10px 14px; gap: 8px; }
+  .pf-frontend-nav { order: 3; width: 100%; padding: 4px 0; }
+  .pf-frontend-main { padding: 16px 14px; }
+  .pf-stats { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 600px) {
+  .pf-login-card { padding: 32px 22px 28px; }
+  .pf-stats { grid-template-columns: 1fr 1fr; }
+  .pf-table-wrap { font-size: 12px; }
+}
