@@ -34,6 +34,7 @@ $intro = $settings->get_setting( 'portal_intro', __( 'Enter your invoice/order n
 				<input
 					type="text"
 					id="pf-portal-order-id"
+					name="order_id"
 					placeholder="<?php esc_attr_e( 'e.g. INV-001', 'processflow-manager' ); ?>"
 					required
 				>

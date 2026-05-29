@@ -57,7 +57,7 @@ class ProcessFlow_Public {
 			'processflow-public',
 			PROCESSFLOW_PLUGIN_URL . 'public/js/processflow-public.js',
 			array( 'jquery' ),
-			PROCESSFLOW_VERSION,
+			(string) filemtime( PROCESSFLOW_PLUGIN_DIR . 'public/js/processflow-public.js' ),
 			true
 		);
 		wp_localize_script(

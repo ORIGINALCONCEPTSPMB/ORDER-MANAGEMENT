@@ -7,6 +7,22 @@
 (function ($) {
 	'use strict';
 
+	// Guard: if WordPress failed to localise the script data, show a graceful
+	// message instead of crashing the entire IIFE with a ReferenceError.
+	if ( typeof processflowPublic === 'undefined' || ! processflowPublic.ajax_url ) {
+		$( document ).ready( function () {
+			var $notice = $( '#pf-portal-notice' );
+			if ( $notice.length ) {
+				$notice.html(
+					'<div class="pf-pub-notice pf-pub-notice--error">' +
+					'Order tracking is temporarily unavailable. Please refresh the page or contact us directly.' +
+					'</div>'
+				);
+			}
+		} );
+		return;
+	}
+
 	const Portal = {
 		nonce:   processflowPublic.nonce,
 		ajaxUrl: processflowPublic.ajax_url,
@@ -69,11 +85,12 @@
 		},
 
 		post(action, data = {}) {
-			return $.post(this.ajaxUrl, {
-				action,
-				nonce: this.nonce,
-				...data,
-			});
+			return $.ajax( {
+				url:      this.ajaxUrl,
+				type:     'POST',
+				dataType: 'json',
+				data: Object.assign( {}, { action, nonce: this.nonce }, data ),
+			} );
 		},
 
 		// -------------------------------------------------------------- //
