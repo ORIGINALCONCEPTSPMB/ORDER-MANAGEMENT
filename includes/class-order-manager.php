@@ -208,7 +208,7 @@ class ProcessFlow_Order_Manager {
 			$clean['whatsapp'] = sanitize_text_field( $data['whatsapp'] );
 		}
 		if ( isset( $data['invoice_number'] ) ) {
-			$clean['invoice_number'] = sanitize_text_field( $data['invoice_number'] );
+			$clean['invoice_number'] = trim( sanitize_text_field( $data['invoice_number'] ) );
 		}
 		if ( isset( $data['job_details'] ) ) {
 			$clean['job_details'] = sanitize_textarea_field( $data['job_details'] );

@@ -166,7 +166,7 @@ class ProcessFlow_Public {
 	public function ajax_portal_login() {
 		check_ajax_referer( 'processflow_public_nonce', 'nonce' );
 
-		$order_ref   = isset( $_POST['order_id'] ) ? sanitize_text_field( wp_unslash( $_POST['order_id'] ) ) : '';
+		$order_ref   = isset( $_POST['order_id'] ) ? trim( sanitize_text_field( wp_unslash( $_POST['order_id'] ) ) ) : '';
 
 		if ( '' === $order_ref ) {
 			wp_send_json_error( array( 'message' => __( 'Please enter a valid order number.', 'processflow-manager' ) ) );
@@ -244,8 +244,8 @@ class ProcessFlow_Public {
 	public function ajax_lookup_order() {
 		check_ajax_referer( 'processflow_public_nonce', 'nonce' );
 
-		$order_ref = isset( $_POST['order_id'] ) ? sanitize_text_field( wp_unslash( $_POST['order_id'] ) ) : '';
-		$token    = isset( $_POST['token'] ) ? sanitize_text_field( wp_unslash( $_POST['token'] ) ) : '';
+		$order_ref = isset( $_POST['order_id'] ) ? trim( sanitize_text_field( wp_unslash( $_POST['order_id'] ) ) ) : '';
+		$token    = isset( $_POST['token'] ) ? trim( sanitize_text_field( wp_unslash( $_POST['token'] ) ) ) : '';
 		$order_id = 0;
 
 		if ( '' !== $order_ref ) {

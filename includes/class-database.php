@@ -94,16 +94,46 @@ class ProcessFlow_Database {
 	public function get_order_by_invoice_number( string $invoice_number ) {
 		global $wpdb;
 
-		$invoice_number = sanitize_text_field( $invoice_number );
+		$invoice_number = $this->normalize_invoice_number( $invoice_number );
 		if ( '' === $invoice_number ) {
 			return null;
 		}
 
 		return $wpdb->get_row( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 			$wpdb->prepare(
-				"SELECT * FROM {$wpdb->prefix}processflow_orders WHERE LOWER(invoice_number) = %s ORDER BY id DESC LIMIT 1",
-				strtolower( $invoice_number )
+				"SELECT * FROM {$wpdb->prefix}processflow_orders
+				WHERE LOWER(
+					REPLACE(
+						REPLACE(
+							REPLACE(
+								REPLACE(
+									REPLACE(
+										REPLACE(TRIM(invoice_number), ' ', ''),
+									'-', ''),
+								'_', ''),
+							'/', ''),
+						'#', ''),
+					'.', '')
+				) = %s
+				ORDER BY id DESC LIMIT 1",
+				$invoice_number
 			)
+		);
+	}
+
+	/**
+	 * Normalize an invoice number for tolerant matching.
+	 *
+	 * @param string $invoice_number Raw invoice number.
+	 * @return string
+	 */
+	private function normalize_invoice_number( string $invoice_number ): string {
+		$invoice_number = strtolower( trim( sanitize_text_field( $invoice_number ) ) );
+
+		return str_replace(
+			array( ' ', '-', '_', '/', '#', '.' ),
+			'',
+			$invoice_number
 		);
 	}
 
