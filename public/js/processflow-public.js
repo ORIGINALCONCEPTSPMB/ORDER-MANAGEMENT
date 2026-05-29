@@ -43,6 +43,31 @@
 			$('#pf-portal-notice').empty();
 		},
 
+		getOrderReferenceFromForm() {
+			const selectors = [
+				'#pf-portal-order-id',
+				'input[name="order_id"]',
+				'input[name="invoice_number"]',
+				'#order_id',
+				'#invoice_number',
+			];
+
+			for (const selector of selectors) {
+				const $field = $(selector).first();
+				if (!$field.length) {
+					continue;
+				}
+
+				const rawValue = $field.val();
+				const value = (typeof rawValue === 'string' ? rawValue : String(rawValue || '')).trim();
+				if (value) {
+					return value;
+				}
+			}
+
+			return '';
+		},
+
 		post(action, data = {}) {
 			return $.post(this.ajaxUrl, {
 				action,
@@ -59,7 +84,7 @@
 				e.preventDefault();
 				this.clearNotice();
 
-				const orderId = $('#pf-portal-order-id').val().trim();
+				const orderId = this.getOrderReferenceFromForm();
 
 				if (!orderId) {
 					this.notice(this.strings.not_found);
@@ -87,7 +112,12 @@
 
 			return this.post('processflow_lookup_order', { order_id: orderRef }).done((res) => {
 				if (res && res.success) {
-					this.renderOrder(res.data);
+					try {
+						this.renderOrder(res.data);
+					} catch (e) {
+						$('#pf-portal-result').empty();
+						this.notice(this.strings.error);
+					}
 				} else {
 					$('#pf-portal-result').empty();
 					const msg = (res && res.data && res.data.message) ? res.data.message : this.strings.error;
